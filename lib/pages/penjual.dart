@@ -41,12 +41,12 @@ class Customer {
   }
 }
 
-class CustomersPage extends StatefulWidget {
+class PenjualPage extends StatefulWidget {
   @override
   _CustomersPageState createState() => _CustomersPageState();
 }
 
-class _CustomersPageState extends State<CustomersPage> {
+class _CustomersPageState extends State<PenjualPage> {
   List<Customer> customers = [];
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';

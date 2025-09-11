@@ -3,15 +3,15 @@ import 'package:flutter/services.dart';
 import '../models/sale_item.dart';
 
 void main() {
-  runApp(MaterialApp(home: TransaksiPenjualan()));
+  runApp(MaterialApp(home: TransaksiPembelian()));
 }
 
-class TransaksiPenjualan extends StatefulWidget {
+class TransaksiPembelian extends StatefulWidget {
   @override
   _TransaksiPenjualanState createState() => _TransaksiPenjualanState();
 }
 
-class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
+class _TransaksiPenjualanState extends State<TransaksiPembelian> {
   String? selectedCustomKriteria;
   bool modalVisible = false;
   String noFaktur = '';
@@ -61,7 +61,7 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
     // In a real app, you would get the next sequence number from the database
     String sequencePart = '0001';
     setState(() {
-      noFaktur = 'PJ-$datePart-$sequencePart';
+      noFaktur = 'PB-$datePart-$sequencePart';
     });
   }
 
