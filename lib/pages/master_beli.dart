@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class MasterBeliPage extends StatefulWidget {
   const MasterBeliPage({Key? key}) : super(key: key);
@@ -18,32 +20,111 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
     'Super C': 'Harga Super C (D 25 Up)',
   };
 
-  List<Map<String, dynamic>> products = [
-    {
-      'id': 1,
-      'name': 'Kayu Alba',
-      'prices': {
-        'Rijek 1': '',
-        'Rijek 2': '',
-        'Standar': '',
-        'Super A': '',
-        'Super B': '',
-        'Super C': '',
-      },
-    },
-    {
-      'id': 2,
-      'name': 'Kayu Sengon',
-      'prices': {
-        'Rijek 1': '',
-        'Rijek 2': '',
-        'Standar': '',
-        'Super A': '',
-        'Super B': '',
-        'Super C': '',
-      },
-    },
-  ];
+  List<Map<String, dynamic>> products = [];
+  bool isLoading = true;
+  String errorMessage = '';
+
+  // Base URL untuk API (sesuaikan dengan environment Anda)
+  static const String baseUrl =
+      'http://192.168.1.40:3000/api'; // Ganti dengan URL server Anda
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts();
+  }
+
+  // Fungsi untuk mengambil data produk dari API
+  Future<void> _fetchProducts() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = '';
+    });
+
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/harga-beli'));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          products = List<Map<String, dynamic>>.from(data);
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          isLoading = false;
+          errorMessage = 'Gagal memuat data: ${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Terjadi kesalahan: $e';
+      });
+    }
+  }
+
+  // Fungsi untuk menambah produk baru
+  Future<void> _addProduct(Map<String, dynamic> newProduct) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/harga-beli'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'name': newProduct['name'],
+          'prices': newProduct['prices'],
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        // Refresh data setelah berhasil menambah
+        _fetchProducts();
+      } else {
+        throw Exception('Gagal menambah produk: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Terjadi kesalahan: $e');
+    }
+  }
+
+  // Fungsi untuk mengupdate produk
+  Future<void> _updateProduct(Map<String, dynamic> updatedProduct) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/harga-beli/${updatedProduct['id']}'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'name': updatedProduct['name'],
+          'prices': updatedProduct['prices'],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        // Refresh data setelah berhasil update
+        _fetchProducts();
+      } else {
+        throw Exception('Gagal mengupdate produk: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Terjadi kesalahan: $e');
+    }
+  }
+
+  // Fungsi untuk menghapus produk
+  Future<void> _deleteProduct(int id) async {
+    try {
+      final response = await http.delete(Uri.parse('$baseUrl/harga-beli/$id'));
+
+      if (response.statusCode == 200) {
+        // Refresh data setelah berhasil menghapus
+        _fetchProducts();
+      } else {
+        throw Exception('Gagal menghapus produk: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Terjadi kesalahan: $e');
+    }
+  }
 
   void _showEditProductDialog(Map<String, dynamic> product) {
     Map<String, TextEditingController> controllers = {};
@@ -97,15 +178,26 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
               child: Text('Batal'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 // Update product data
-                setState(() {
-                  product['name'] = nameController.text;
-                  controllers.forEach((key, controller) {
-                    product['prices'][key] = controller.text;
-                  });
+                final updatedProduct = {
+                  'id': product['id'],
+                  'name': nameController.text,
+                  'prices': {},
+                };
+
+                controllers.forEach((key, controller) {
+                  updatedProduct['prices'][key] = controller.text;
                 });
-                Navigator.of(context).pop();
+
+                try {
+                  await _updateProduct(updatedProduct);
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal mengupdate produk: $e')),
+                  );
+                }
               },
               child: Text('Simpan'),
             ),
@@ -173,23 +265,60 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
               child: Text('Batal'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 // Add new product
                 Map<String, String> prices = {};
                 controllers.forEach((key, controller) {
                   prices[key] = controller.text;
                 });
 
-                setState(() {
-                  products.add({
-                    'id': DateTime.now().millisecondsSinceEpoch,
-                    'name': nameController.text,
-                    'prices': prices,
-                  });
-                });
-                Navigator.of(context).pop();
+                final newProduct = {
+                  'name': nameController.text,
+                  'prices': prices,
+                };
+
+                try {
+                  await _addProduct(newProduct);
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal menambah produk: $e')),
+                  );
+                }
               },
               child: Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteConfirmationDialog(int id, String name) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Hapus Produk'),
+          content: Text('Apakah Anda yakin ingin menghapus $name?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _deleteProduct(id);
+                  Navigator.of(context).pop();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal menghapus produk: $e')),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: Text('Hapus'),
             ),
           ],
         );
@@ -203,17 +332,24 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
       appBar: AppBar(
         title: Text('Manajemen Produk'),
         actions: [
+          IconButton(icon: Icon(Icons.refresh), onPressed: _fetchProducts),
           IconButton(icon: Icon(Icons.add), onPressed: _showAddProductDialog),
         ],
       ),
-      body: ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: products.length,
-        itemBuilder: (context, index) {
-          final product = products[index];
-          return _buildProductCard(product);
-        },
-      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : errorMessage.isNotEmpty
+          ? Center(child: Text(errorMessage))
+          : products.isEmpty
+          ? Center(child: Text('Tidak ada data produk'))
+          : ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return _buildProductCard(product);
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddProductDialog,
         child: Icon(Icons.add),
@@ -241,10 +377,23 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
             Text('Standar: Rp ${product['prices']['Standar']}'),
           ],
         ),
-        trailing: Icon(Icons.edit),
-        onTap: () {
-          _showEditProductDialog(product);
-        },
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(Icons.edit),
+              onPressed: () {
+                _showEditProductDialog(product);
+              },
+            ),
+            IconButton(
+              icon: Icon(Icons.delete, color: Colors.red),
+              onPressed: () {
+                _showDeleteConfirmationDialog(product['id'], product['name']);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

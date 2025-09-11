@@ -1,8 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-
-dotenv.config(); // Load .env
+require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,31 +9,34 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Routes
-app.use('/penjual', require('./routes/penjual'));
-app.use('/pembeli', require('./routes/pembeli'));
-app.use('/masterjual', require('./routes/masterjual'));
-app.use('/masterbeli', require('./routes/masterbeli'));
-app.use('/penjualan', require('./routes/penjualan'));
-app.use('/pembelian', require('./routes/pembelian'));
+// Import routes
+const masterBeliRoutes = require('./routes/masterbeli');
+// const masterJualRoutes = require('./routes/masterjual');
+// const penjualanRoutes = require('./routes/penjualan');
+// const pembelianRoutes = require('./routes/pembelian');
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+// Use routes dengan path yang benar
+app.use('/api/harga-beli', masterBeliRoutes);
+// app.use('/api/harga-jual', masterJualRoutes);
+// app.use('/api/penjualan', penjualanRoutes);
+// app.use('/api/pembelian', pembelianRoutes);
+
+// Test route
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Server is running!' });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
-});
-
-// Error handler
+// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Start server
+// Handle 404 - harus di paling akhir
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`Server running on port ${port}`);
 });
