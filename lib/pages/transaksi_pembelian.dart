@@ -8,14 +8,14 @@ void main() {
 
 class TransaksiPembelian extends StatefulWidget {
   @override
-  _TransaksiPenjualanState createState() => _TransaksiPenjualanState();
+  _TransaksiPembelianState createState() => _TransaksiPembelianState();
 }
 
-class _TransaksiPenjualanState extends State<TransaksiPembelian> {
+class _TransaksiPembelianState extends State<TransaksiPembelian> {
   String? selectedCustomKriteria;
   bool modalVisible = false;
   String noFaktur = '';
-  String pembeli = '';
+  String penjual = '';
   String alamat = '';
   String kayu = '';
   int selectedKayuId = 0;
@@ -247,7 +247,7 @@ class _TransaksiPenjualanState extends State<TransaksiPembelian> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Transaksi Penjualan')),
+      appBar: AppBar(title: Text('Transaksi Pembelian')),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(10),
         child: Column(
@@ -268,7 +268,7 @@ class _TransaksiPenjualanState extends State<TransaksiPembelian> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text('No Faktur: $noFaktur'),
-                    Text('Pembeli: $pembeli'),
+                    Text('Penjual: $penjual'),
                     Text('Nama Kayu: $kayu'),
                   ],
                 ),
@@ -379,7 +379,7 @@ class _TransaksiPenjualanState extends State<TransaksiPembelian> {
 
             // Tabel Data Transaksi
             Text(
-              'Data Transaksi Penjualan:',
+              'Data Transaksi Pembelian:',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
@@ -698,7 +698,7 @@ class _TransaksiPenjualanState extends State<TransaksiPembelian> {
         ),
       ),
 
-      // Modal Input Data Penjualan
+      // Modal Input Data Pembelian
       floatingActionButton: modalVisible
           ? Container(
               margin: EdgeInsets.all(20),
@@ -719,7 +719,7 @@ class _TransaksiPenjualanState extends State<TransaksiPembelian> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Input Data Penjualan',
+                    'Input Data Pembelian',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 20),
@@ -727,15 +727,15 @@ class _TransaksiPenjualanState extends State<TransaksiPembelian> {
                   SizedBox(height: 10),
                   TextField(
                     decoration: InputDecoration(
-                      labelText: 'Nama Pembeli',
+                      labelText: 'Nama Penjual',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => pembeli = value),
+                    onChanged: (value) => setState(() => penjual = value),
                   ),
                   SizedBox(height: 10),
                   TextField(
                     decoration: InputDecoration(
-                      labelText: 'Alamat Pembeli',
+                      labelText: 'Alamat Penjual',
                       border: OutlineInputBorder(),
                     ),
                     onChanged: (value) => setState(() => alamat = value),
