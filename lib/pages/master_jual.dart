@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -25,8 +26,8 @@ class _MasterJualPageState extends State<MasterJualPage> {
   String errorMessage = '';
 
   // Base URL untuk API (sesuaikan dengan environment Anda)
-  static const String baseUrl =
-      'http://192.168.1.40:3000/api'; // Ganti dengan URL server Anda
+  static final String baseUrl =
+      dotenv.env['API_BASE_URL']!; // Ganti dengan URL server Anda
 
   @override
   void initState() {

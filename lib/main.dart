@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // ✅
 import 'pages/home_page.dart';
 import 'pages/transaksi_penjualan.dart';
 import 'pages/transaksi_pembelian.dart';
@@ -11,7 +12,8 @@ import 'pages/penjual.dart';
 
 import 'widgets/sidebar.dart';
 
-void main() {
+Future<void> main() async {
+  await dotenv.load(fileName: ".env"); // ✅ Wajib ditunggu sebelum runApp
   runApp(MyApp());
 }
 
@@ -105,9 +107,9 @@ class _MainLayoutState extends State<MainLayout> {
       case 2:
         return 'Transaksi Pembelian';
       case 3:
-        return 'Master Pembelian';
+        return 'Master Harga Pembelian';
       case 4:
-        return 'Master Penjualan';
+        return 'Master Harga Penjualan';
       case 5:
         return 'Data Pembeli';
       case 6:

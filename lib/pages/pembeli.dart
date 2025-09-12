@@ -1,159 +1,206 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class Customer {
-  final String id;
-  final String name;
-  final String address;
-  final String phone;
+  final int id;
+  final String nama;
+  final String alamat;
+  final String telepon;
   final String email;
-  final DateTime joinDate;
+  final DateTime? createdAt; // nullable
 
   Customer({
     required this.id,
-    required this.name,
-    required this.address,
-    required this.phone,
+    required this.nama,
+    required this.alamat,
+    required this.telepon,
     required this.email,
-    required this.joinDate,
+    this.createdAt, // optional
   });
+
+  factory Customer.fromJson(Map<String, dynamic> json) {
+    return Customer(
+      id: json['id'],
+      nama: json['nama'],
+      alamat: json['alamat'] ?? '',
+      telepon: json['telepon'] ?? '',
+      email: json['email'] ?? '',
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'])
+          : null,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'name': name,
-      'address': address,
-      'phone': phone,
+      'nama': nama,
+      'alamat': alamat,
+      'telepon': telepon,
       'email': email,
-      'joinDate': joinDate.toIso8601String(),
+      'created_at': createdAt?.toIso8601String(),
     };
-  }
-
-  factory Customer.fromMap(Map<String, dynamic> map) {
-    return Customer(
-      id: map['id'],
-      name: map['name'],
-      address: map['address'],
-      phone: map['phone'],
-      email: map['email'],
-      joinDate: DateTime.parse(map['joinDate']),
-    );
   }
 }
 
 class PembeliPage extends StatefulWidget {
   @override
-  _CustomersPageState createState() => _CustomersPageState();
+  _PembeliPageState createState() => _PembeliPageState();
 }
 
-class _CustomersPageState extends State<PembeliPage> {
+class _PembeliPageState extends State<PembeliPage> {
   List<Customer> customers = [];
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _isLoading = false;
+  String _errorMessage = '';
+
+  // Base URL untuk API
+  static final String baseUrl = '${dotenv.env['API_BASE_URL']}/pembeli';
 
   @override
   void initState() {
     super.initState();
-    // Data contoh
-    _loadSampleData();
+    _loadCustomers();
   }
 
-  void _loadSampleData() {
+  Future<void> _loadCustomers() async {
     setState(() {
-      customers = [
-        Customer(
-          id: '1',
-          name: 'Budi Santoso',
-          address: 'Jl. Merdeka No. 123, Jakarta',
-          phone: '081234567890',
-          email: 'budi.santoso@email.com',
-          joinDate: DateTime(2024, 1, 15),
-        ),
-        Customer(
-          id: '2',
-          name: 'Siti Rahayu',
-          address: 'Jl. Sudirman No. 456, Bandung',
-          phone: '082345678901',
-          email: 'siti.rahayu@email.com',
-          joinDate: DateTime(2024, 2, 20),
-        ),
-        Customer(
-          id: '3',
-          name: 'Ahmad Wijaya',
-          address: 'Jl. Gatot Subroto No. 789, Surabaya',
-          phone: '083456789012',
-          email: 'ahmad.wijaya@email.com',
-          joinDate: DateTime(2024, 3, 10),
-        ),
-        Customer(
-          id: '4',
-          name: 'Dewi Lestari',
-          address: 'Jl. Thamrin No. 321, Medan',
-          phone: '084567890123',
-          email: 'dewi.lestari@email.com',
-          joinDate: DateTime(2024, 4, 5),
-        ),
-        Customer(
-          id: '5',
-          name: 'Rudi Hermawan',
-          address: 'Jl. Asia Afrika No. 654, Yogyakarta',
-          phone: '085678901234',
-          email: 'rudi.hermawan@email.com',
-          joinDate: DateTime(2024, 5, 12),
-        ),
-      ];
+      _isLoading = true;
+      _errorMessage = '';
     });
-  }
 
-  List<Customer> get filteredCustomers {
-    if (_searchQuery.isEmpty) {
-      return customers;
+    try {
+      String url = baseUrl;
+      if (_searchQuery.isNotEmpty) {
+        url += '?search=${Uri.encodeQueryComponent(_searchQuery)}';
+      }
+
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          customers = data.map((json) => Customer.fromJson(json)).toList();
+        });
+      } else {
+        throw Exception(
+          'Gagal memuat pelanggan (Kode: ${response.statusCode})',
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Terjadi kesalahan: $e';
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat data pelanggan')));
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
-    return customers.where((customer) {
-      return customer.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          customer.address.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          customer.phone.contains(_searchQuery) ||
-          customer.email.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList();
   }
 
-  void _addCustomer() {
+  Future<void> _addCustomer(Customer customer) async {
+    try {
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'nama': customer.nama,
+          'alamat': customer.alamat,
+          'telepon': customer.telepon,
+          'email': customer.email,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        _loadCustomers(); // Reload data setelah berhasil menambah
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Pelanggan berhasil ditambahkan')),
+        );
+      } else {
+        throw Exception('Failed to add customer: ${response.statusCode}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menambahkan pelanggan: $e')),
+      );
+    }
+  }
+
+  Future<void> _updateCustomer(Customer customer) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/${customer.id}'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'nama': customer.nama,
+          'alamat': customer.alamat,
+          'telepon': customer.telepon,
+          'email': customer.email,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        _loadCustomers(); // Reload data setelah berhasil update
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Pelanggan berhasil diperbarui')),
+        );
+      } else {
+        throw Exception('Failed to update customer: ${response.statusCode}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui pelanggan: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteCustomer(int id) async {
+    try {
+      final response = await http.delete(Uri.parse('$baseUrl/$id'));
+
+      if (response.statusCode == 200) {
+        _loadCustomers(); // Reload data setelah berhasil delete
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Pelanggan berhasil dihapus')));
+      } else {
+        throw Exception('Failed to delete customer: ${response.statusCode}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menghapus pelanggan: $e')));
+    }
+  }
+
+  void _showAddCustomerDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return CustomerDialog(
-          onSave: (customer) {
-            setState(() {
-              customers.add(customer);
-            });
-          },
-        );
+        return CustomerDialog(onSave: _addCustomer);
       },
     );
   }
 
-  void _editCustomer(Customer customer) {
+  void _showEditCustomerDialog(Customer customer) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return CustomerDialog(
-          customer: customer,
-          onSave: (editedCustomer) {
-            setState(() {
-              final index = customers.indexWhere(
-                (c) => c.id == editedCustomer.id,
-              );
-              if (index != -1) {
-                customers[index] = editedCustomer;
-              }
-            });
-          },
-        );
+        return CustomerDialog(customer: customer, onSave: _updateCustomer);
       },
     );
   }
 
-  void _deleteCustomer(String id) {
+  void _showDeleteConfirmation(int id) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -167,13 +214,8 @@ class _CustomersPageState extends State<PembeliPage> {
             ),
             TextButton(
               onPressed: () {
-                setState(() {
-                  customers.removeWhere((customer) => customer.id == id);
-                });
+                _deleteCustomer(id);
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Pelanggan berhasil dihapus')),
-                );
               },
               child: Text('Hapus', style: TextStyle(color: Colors.red)),
             ),
@@ -201,7 +243,7 @@ class _CustomersPageState extends State<PembeliPage> {
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),
-            onPressed: _loadSampleData,
+            onPressed: _loadCustomers,
             tooltip: 'Refresh Data',
           ),
         ],
@@ -227,6 +269,7 @@ class _CustomersPageState extends State<PembeliPage> {
                           setState(() {
                             _searchQuery = '';
                           });
+                          _loadCustomers();
                         },
                       )
                     : null,
@@ -236,8 +279,25 @@ class _CustomersPageState extends State<PembeliPage> {
                   _searchQuery = value;
                 });
               },
+              onSubmitted: (value) {
+                _loadCustomers();
+              },
             ),
           ),
+
+          // Loading and Error States
+          if (_isLoading)
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(),
+            ),
+
+          if (_errorMessage.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(_errorMessage, style: TextStyle(color: Colors.red)),
+            ),
+
           // Customer Count
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -245,7 +305,7 @@ class _CustomersPageState extends State<PembeliPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Total Pelanggan: ${filteredCustomers.length}',
+                  'Total Pelanggan: ${customers.length}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.blue,
@@ -263,9 +323,12 @@ class _CustomersPageState extends State<PembeliPage> {
             ),
           ),
           SizedBox(height: 10),
+
           // Customers List
           Expanded(
-            child: filteredCustomers.isEmpty
+            child: _isLoading
+                ? Center(child: CircularProgressIndicator())
+                : customers.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -284,7 +347,7 @@ class _CustomersPageState extends State<PembeliPage> {
                         ),
                         if (_searchQuery.isEmpty)
                           TextButton(
-                            onPressed: _addCustomer,
+                            onPressed: _showAddCustomerDialog,
                             child: Text('Tambah Pelanggan Pertama'),
                           ),
                       ],
@@ -292,13 +355,13 @@ class _CustomersPageState extends State<PembeliPage> {
                   )
                 : ListView.builder(
                     padding: EdgeInsets.only(bottom: 16),
-                    itemCount: filteredCustomers.length,
+                    itemCount: customers.length,
                     itemBuilder: (context, index) {
-                      final customer = filteredCustomers[index];
+                      final customer = customers[index];
                       return CustomerCard(
                         customer: customer,
-                        onEdit: () => _editCustomer(customer),
-                        onDelete: () => _deleteCustomer(customer.id),
+                        onEdit: () => _showEditCustomerDialog(customer),
+                        onDelete: () => _showDeleteConfirmation(customer.id),
                         onView: () => _viewCustomerDetails(customer),
                       );
                     },
@@ -307,7 +370,7 @@ class _CustomersPageState extends State<PembeliPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addCustomer,
+        onPressed: _showAddCustomerDialog,
         child: Icon(Icons.add),
         tooltip: 'Tambah Pelanggan',
       ),
@@ -338,22 +401,22 @@ class CustomerCard extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: Colors.blue,
           child: Text(
-            customer.name[0].toUpperCase(),
+            customer.nama[0].toUpperCase(),
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
         title: Text(
-          customer.name,
+          customer.nama,
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(height: 4),
-            Text(customer.phone),
+            Text(customer.telepon),
             SizedBox(height: 2),
             Text(
-              customer.address,
+              customer.alamat,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12, color: Colors.grey),
@@ -391,18 +454,18 @@ class CustomerDialog extends StatefulWidget {
 
 class _CustomerDialogState extends State<CustomerDialog> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _namaController = TextEditingController();
+  final TextEditingController _alamatController = TextEditingController();
+  final TextEditingController _teleponController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     if (widget.customer != null) {
-      _nameController.text = widget.customer!.name;
-      _addressController.text = widget.customer!.address;
-      _phoneController.text = widget.customer!.phone;
+      _namaController.text = widget.customer!.nama;
+      _alamatController.text = widget.customer!.alamat;
+      _teleponController.text = widget.customer!.telepon;
       _emailController.text = widget.customer!.email;
     }
   }
@@ -425,7 +488,7 @@ class _CustomerDialogState extends State<CustomerDialog> {
               ),
               SizedBox(height: 20),
               TextFormField(
-                controller: _nameController,
+                controller: _namaController,
                 decoration: InputDecoration(
                   labelText: 'Nama Pelanggan',
                   border: OutlineInputBorder(),
@@ -439,7 +502,7 @@ class _CustomerDialogState extends State<CustomerDialog> {
               ),
               SizedBox(height: 15),
               TextFormField(
-                controller: _phoneController,
+                controller: _teleponController,
                 decoration: InputDecoration(
                   labelText: 'Nomor Telepon',
                   border: OutlineInputBorder(),
@@ -475,7 +538,7 @@ class _CustomerDialogState extends State<CustomerDialog> {
               ),
               SizedBox(height: 15),
               TextFormField(
-                controller: _addressController,
+                controller: _alamatController,
                 decoration: InputDecoration(
                   labelText: 'Alamat',
                   border: OutlineInputBorder(),
@@ -501,26 +564,16 @@ class _CustomerDialogState extends State<CustomerDialog> {
                     onPressed: () {
                       if (_formKey.currentState!.validate()) {
                         final customer = Customer(
-                          id:
-                              widget.customer?.id ??
-                              DateTime.now().millisecondsSinceEpoch.toString(),
-                          name: _nameController.text,
-                          address: _addressController.text,
-                          phone: _phoneController.text,
+                          id: widget.customer?.id ?? 0,
+                          nama: _namaController.text,
+                          alamat: _alamatController.text,
+                          telepon: _teleponController.text,
                           email: _emailController.text,
-                          joinDate: widget.customer?.joinDate ?? DateTime.now(),
+                          createdAt:
+                              widget.customer?.createdAt ?? DateTime.now(),
                         );
                         widget.onSave(customer);
                         Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              widget.customer == null
-                                  ? 'Pelanggan berhasil ditambahkan'
-                                  : 'Pelanggan berhasil diperbarui',
-                            ),
-                          ),
-                        );
                       }
                     },
                     child: Text(
@@ -545,106 +598,160 @@ class CustomerDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.7, // Tinggi awal modal
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return SingleChildScrollView(
+          controller: scrollController,
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 60,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 20),
+                Center(
+                  child: CircleAvatar(
+                    backgroundColor: Colors.blue,
+                    radius: 40,
+                    child: Text(
+                      customer.nama[0].toUpperCase(),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                Center(
+                  child: Text(
+                    customer.nama,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    customer.email.isNotEmpty
+                        ? customer.email
+                        : 'Tidak ada email',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                SizedBox(height: 24),
+                Divider(),
+                _buildDetailItem('Telepon', customer.telepon, Icons.phone),
+                _buildDetailItem('Alamat', customer.alamat, Icons.location_on),
+                _buildDetailItem(
+                  'Tanggal Bergabung',
+                  '${customer.createdAt?.day}/${customer.createdAt?.month}/${customer.createdAt?.year}',
+                  Icons.calendar_today,
+                ),
+                SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final phone = customer.telepon;
+                        if (phone.isNotEmpty) {
+                          final Uri telUri = Uri(scheme: 'tel', path: phone);
+                          if (await canLaunchUrl(telUri)) {
+                            await launchUrl(telUri);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Tidak dapat melakukan panggilan.',
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: Icon(Icons.call),
+                      label: Text('Telepon'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final phone = customer.telepon.replaceFirst(
+                          RegExp(r'^0'),
+                          '62',
+                        );
+                        final Uri whatsappUri = Uri.parse(
+                          'https://wa.me/$phone',
+                        );
+                        if (await canLaunchUrl(whatsappUri)) {
+                          await launchUrl(whatsappUri);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Gagal membuka WhatsApp')),
+                          );
+                        }
+                      },
+                      icon: Icon(Icons.chat),
+                      label: Text('WhatsApp'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 30),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailItem(String label, String value, IconData icon) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 60,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          SizedBox(height: 20),
-          Center(
-            child: CircleAvatar(
-              backgroundColor: Colors.blue,
-              radius: 40,
-              child: Text(
-                customer.name[0].toUpperCase(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+          Icon(icon, size: 20, color: Colors.blue),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
+                SizedBox(height: 4),
+                Text(value, style: TextStyle(fontSize: 16)),
+              ],
             ),
           ),
-          SizedBox(height: 16),
-          Center(
-            child: Text(
-              customer.name,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ),
-          SizedBox(height: 8),
-          Center(
-            child: Text(
-              'Bergabung: ${_formatDate(customer.joinDate)}',
-              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-            ),
-          ),
-          SizedBox(height: 24),
-          _buildDetailItem(Icons.phone, customer.phone),
-          _buildDetailItem(
-            Icons.email,
-            customer.email.isNotEmpty ? customer.email : '-',
-          ),
-          _buildDetailItem(Icons.location_on, customer.address),
-          SizedBox(height: 30),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Aksi telepon
-                },
-                icon: Icon(Icons.call),
-                label: Text('Telepon'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Aksi WhatsApp
-                },
-                icon: Icon(Icons.chat),
-                label: Text('WhatsApp'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 20),
         ],
       ),
     );
-  }
-
-  Widget _buildDetailItem(IconData icon, String text) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.blue, size: 20),
-          SizedBox(width: 12),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 16))),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 }
