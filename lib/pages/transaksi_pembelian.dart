@@ -21,13 +21,13 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
   String alamat = '';
   String kayu = '';
 
-  Map<String, String> harga = {
-    'Rijek 1': '',
-    'Rijek 2': '',
-    'Standar': '',
-    'Super A': '',
-    'Super B': '',
-    'Super C': '',
+  Map<String, dynamic> harga = {
+    'Rijek 1': 0.0,
+    'Rijek 2': 0.0,
+    'Standar': 0.0,
+    'Super A': 0.0,
+    'Super B': 0.0,
+    'Super C': 0.0,
   };
 
   String kriteria = '';
@@ -142,7 +142,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     double p = double.tryParse(panjang) ?? 0;
     if (d == 0 || p == 0) return;
 
-    // 1. Tentukan kriteria berdasarkan custom atau diameter
+    // 1. Tentukan kriteria berdasarkan diameter atau custom
     String currentKriteria = selectedCustomKriteria ?? '';
     if (currentKriteria.isEmpty) {
       if (d >= 10 && d <= 14) {
@@ -156,7 +156,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
       }
     }
 
-    // 2. Normalisasi label ke format map harga
+    // Normalisasi label
     String normalizeKriteria(String label) {
       switch (label) {
         case 'R1':
@@ -181,8 +181,22 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     print('Harga map: $harga');
     print('Current kriteria: $currentKriteria');
 
-    // 3. Ambil harga dari map berdasarkan kriteria
-    int hargaSatuan = ((harga[currentKriteria] ?? 0) as double).round();
+    // Ambil harga per satuan dengan handling tipe aman
+    dynamic rawHarga = harga[currentKriteria];
+
+    double hargaDouble = 0;
+
+    if (rawHarga is String) {
+      hargaDouble = double.tryParse(rawHarga) ?? 0;
+    } else if (rawHarga is int) {
+      hargaDouble = rawHarga.toDouble();
+    } else if (rawHarga is double) {
+      hargaDouble = rawHarga;
+    } else {
+      hargaDouble = 0;
+    }
+
+    int hargaSatuan = hargaDouble.round();
     if (hargaSatuan <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -192,7 +206,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
       return;
     }
 
-    // 4. Hitung volume (cek custom volume dulu)
+    // 4. Hitung volume
     var custom = customVolumes.firstWhere(
       (c) => c['diameter'] == d,
       orElse: () => {},
@@ -200,13 +214,19 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
 
     double volume;
     if (custom.isNotEmpty) {
-      volume = (custom['volume'] ?? 0).toDouble();
+      var rawVol = custom['volume'];
+      if (rawVol is int) {
+        volume = rawVol.toDouble();
+      } else if (rawVol is double) {
+        volume = rawVol;
+      } else if (rawVol is String) {
+        volume = double.tryParse(rawVol) ?? 0;
+      } else {
+        volume = 0;
+      }
     } else {
       double rawVolume = (0.785 * d * d * p) / 1000;
       double decimal = rawVolume - rawVolume.floor();
-      print(
-        'custom volume: ${custom['volume']} (type: ${custom['volume']?.runtimeType})',
-      );
       volume = (decimal >= 0.6 ? rawVolume.floor() + 1 : rawVolume.floor())
           .toDouble();
     }
@@ -214,7 +234,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     // 5. Hitung total harga
     int jumlahHarga = (volume * hargaSatuan).round();
 
-    // 6. Cek apakah item ini sudah ada
+    // 6. Cek duplikasi
     int existingIndex = data.indexWhere(
       (item) =>
           item['diameter'] == d &&
@@ -224,21 +244,20 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
 
     List<Map<String, dynamic>> updatedData;
     if (existingIndex >= 0) {
-      // Update jumlah dan total
       updatedData = List<Map<String, dynamic>>.from(data);
       var item = updatedData[existingIndex];
       int newJumlah = item['jumlah'] + 1;
       updatedData[existingIndex] = {
         ...item,
         'jumlah': newJumlah,
-        'jumlahHarga': volume * hargaSatuan * newJumlah,
+        'jumlahHarga': (volume * hargaSatuan * newJumlah).round(),
       };
       updatedData = sortData(updatedData);
       setState(() {
         latestItemId = updatedData[existingIndex]['id'];
+        data = updatedData;
       });
     } else {
-      // Tambah item baru
       var newItem = {
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'kriteria': currentKriteria,
@@ -252,14 +271,11 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
       updatedData = sortData([...data, newItem]);
       setState(() {
         latestItemId = newItem['id'].toString();
+        data = updatedData;
       });
     }
 
-    // 7. Update state data dan scroll ke bawah
-    setState(() {
-      data = updatedData;
-    });
-
+    // scroll ke bawah
     Future.delayed(Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
