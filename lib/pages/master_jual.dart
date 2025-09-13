@@ -26,8 +26,7 @@ class _MasterJualPageState extends State<MasterJualPage> {
   String errorMessage = '';
 
   // Base URL untuk API (sesuaikan dengan environment Anda)
-  static final String baseUrl =
-      dotenv.env['API_BASE_URL']!; // Ganti dengan URL server Anda
+  static final String baseUrl = dotenv.env['API_BASE_URL']!;
 
   @override
   void initState() {
@@ -72,7 +71,7 @@ class _MasterJualPageState extends State<MasterJualPage> {
         Uri.parse('$baseUrl/harga-jual'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'name': newProduct['name'],
+          'nama_kayu': newProduct['nama_kayu'],
           'prices': newProduct['prices'],
         }),
       );
@@ -95,7 +94,7 @@ class _MasterJualPageState extends State<MasterJualPage> {
         Uri.parse('$baseUrl/harga-jual/${updatedProduct['id']}'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'name': updatedProduct['name'],
+          'nama_kayu': updatedProduct['nama_kayu'],
           'prices': updatedProduct['prices'],
         }),
       );
@@ -136,7 +135,7 @@ class _MasterJualPageState extends State<MasterJualPage> {
     });
 
     TextEditingController nameController = TextEditingController(
-      text: product['name'],
+      text: product['nama_kayu'],
     );
 
     showDialog(
@@ -183,7 +182,7 @@ class _MasterJualPageState extends State<MasterJualPage> {
                 // Update product data
                 final updatedProduct = {
                   'id': product['id'],
-                  'name': nameController.text,
+                  'nama_kayu': nameController.text,
                   'prices': {},
                 };
 
@@ -274,7 +273,7 @@ class _MasterJualPageState extends State<MasterJualPage> {
                 });
 
                 final newProduct = {
-                  'name': nameController.text,
+                  'nama_kayu': nameController.text,
                   'prices': prices,
                 };
 
@@ -295,13 +294,13 @@ class _MasterJualPageState extends State<MasterJualPage> {
     );
   }
 
-  void _showDeleteConfirmationDialog(int id, String name) {
+  void _showDeleteConfirmationDialog(int id, String nama_kayu) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Hapus Produk'),
-          content: Text('Apakah Anda yakin ingin menghapus $name?'),
+          content: Text('Apakah Anda yakin ingin menghapus $nama_kayu?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -367,7 +366,7 @@ class _MasterJualPageState extends State<MasterJualPage> {
           child: Icon(Icons.forest, color: Colors.green),
         ),
         title: Text(
-          product['name'],
+          product['nama_kayu'],
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
@@ -390,7 +389,10 @@ class _MasterJualPageState extends State<MasterJualPage> {
             IconButton(
               icon: Icon(Icons.delete, color: Colors.red),
               onPressed: () {
-                _showDeleteConfirmationDialog(product['id'], product['name']);
+                _showDeleteConfirmationDialog(
+                  product['id'],
+                  product['nama_kayu'],
+                );
               },
             ),
           ],

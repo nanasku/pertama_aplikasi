@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -25,8 +26,8 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
   String errorMessage = '';
 
   // Base URL untuk API (sesuaikan dengan environment Anda)
-  static const String baseUrl =
-      'http://192.168.1.40:3000/api'; // Ganti dengan URL server Anda
+  static final String baseUrl =
+      dotenv.env['API_BASE_URL']!; // Ganti dengan URL server Anda
 
   @override
   void initState() {
@@ -71,7 +72,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
         Uri.parse('$baseUrl/harga-beli'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'name': newProduct['name'],
+          'nama_kayu': newProduct['nama_kayu'],
           'prices': newProduct['prices'],
         }),
       );
@@ -94,7 +95,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
         Uri.parse('$baseUrl/harga-beli/${updatedProduct['id']}'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'name': updatedProduct['name'],
+          'nama_kayu': updatedProduct['nama_kayu'],
           'prices': updatedProduct['prices'],
         }),
       );
@@ -119,7 +120,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
         // Refresh data setelah berhasil menghapus
         _fetchProducts();
       } else {
-        throw Exception('Gagal menghapus produk: ${response.statusCode}');
+        throw Exception('Gagal menghapus log barang: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Terjadi kesalahan: $e');
@@ -135,14 +136,14 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
     });
 
     TextEditingController nameController = TextEditingController(
-      text: product['name'],
+      text: product['nama_kayu'],
     );
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Edit Harga Produk'),
+          title: Text('Edit Harga Log Barang'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -182,7 +183,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
                 // Update product data
                 final updatedProduct = {
                   'id': product['id'],
-                  'name': nameController.text,
+                  'nama_kayu': nameController.text,
                   'prices': {},
                 };
 
@@ -195,7 +196,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
                   Navigator.of(context).pop();
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal mengupdate produk: $e')),
+                    SnackBar(content: Text('Gagal mengupdate log barang: $e')),
                   );
                 }
               },
@@ -229,7 +230,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Tambah Produk Baru'),
+          title: Text('Tambah Log Baru'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -273,7 +274,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
                 });
 
                 final newProduct = {
-                  'name': nameController.text,
+                  'nama_kayu': nameController.text,
                   'prices': prices,
                 };
 
@@ -282,7 +283,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
                   Navigator.of(context).pop();
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal menambah produk: $e')),
+                    SnackBar(content: Text('Gagal menambah log barang: $e')),
                   );
                 }
               },
@@ -294,13 +295,13 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
     );
   }
 
-  void _showDeleteConfirmationDialog(int id, String name) {
+  void _showDeleteConfirmationDialog(int id, String nama_kayu) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Hapus Produk'),
-          content: Text('Apakah Anda yakin ingin menghapus $name?'),
+          title: Text('Hapus Log Barang'),
+          content: Text('Apakah Anda yakin ingin menghapus $nama_kayu?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -313,7 +314,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
                   Navigator.of(context).pop();
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal menghapus produk: $e')),
+                    SnackBar(content: Text('Gagal menghapus log barang: $e')),
                   );
                 }
               },
@@ -330,7 +331,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Manajemen Produk'),
+        title: Text('Harga Log Pembelian'),
         actions: [
           IconButton(icon: Icon(Icons.refresh), onPressed: _fetchProducts),
           IconButton(icon: Icon(Icons.add), onPressed: _showAddProductDialog),
@@ -341,7 +342,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
           : errorMessage.isNotEmpty
           ? Center(child: Text(errorMessage))
           : products.isEmpty
-          ? Center(child: Text('Tidak ada data produk'))
+          ? Center(child: Text('Tidak ada data Log Barang'))
           : ListView.builder(
               padding: EdgeInsets.all(16),
               itemCount: products.length,
@@ -366,7 +367,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
           child: Icon(Icons.forest, color: Colors.green),
         ),
         title: Text(
-          product['name'],
+          product['nama_kayu'],
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
@@ -389,7 +390,10 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
             IconButton(
               icon: Icon(Icons.delete, color: Colors.red),
               onPressed: () {
-                _showDeleteConfirmationDialog(product['id'], product['name']);
+                _showDeleteConfirmationDialog(
+                  product['id'],
+                  product['nama_kayu'],
+                );
               },
             ),
           ],

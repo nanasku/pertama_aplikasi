@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../models/sale_item.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(MaterialApp(home: TransaksiPembelian()));
@@ -18,7 +20,6 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
   String penjual = '';
   String alamat = '';
   String kayu = '';
-  int selectedKayuId = 0;
 
   Map<String, String> harga = {
     'Rijek 1': '',
@@ -33,6 +34,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
   String diameter = '';
   String panjang = '';
   List<Map<String, dynamic>> data = [];
+  Map<String, dynamic> pricesMap = {};
   String? latestItemId;
 
   List<Map<String, dynamic>> customVolumes = [];
@@ -41,17 +43,85 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
 
   ScrollController _scrollController = ScrollController();
 
+  // Data dari database
+  List<Map<String, dynamic>> daftarPenjual = [];
+  List<Map<String, dynamic>> daftarKayu = [];
+  String? selectedPenjualId;
+  String? selectedKayuId;
+  String? selectedPenjualNama;
+  String? selectedPenjualAlamat;
+  String? selectedKayuNama;
+
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
     _generateNoFaktur();
+    _loadDataDariDatabase();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // Fungsi untuk memuat data dari database
+  Future<void> _loadDataDariDatabase() async {
+    await _loadPenjual();
+    await _loadKayu();
+  }
+
+  // Fungsi untuk memuat data penjual dari backend
+  Future<void> _loadPenjual() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${dotenv.env['API_BASE_URL']}/penjual'),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          daftarPenjual = data
+              .map(
+                (item) => {
+                  'id': item['id'].toString(),
+                  'nama': item['nama'],
+                  'alamat': item['alamat'] ?? '',
+                  'telepon': item['telepon'] ?? '',
+                  'email': item['email'] ?? '',
+                },
+              )
+              .toList();
+        });
+      }
+    } catch (error) {
+      print('Error loading penjual: $error');
+    }
+  }
+
+  // Fungsi untuk memuat data kayu dari backend
+  Future<void> _loadKayu() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${dotenv.env['API_BASE_URL']}/harga-beli'),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          daftarKayu = data
+              .map(
+                (item) => {
+                  'id': item['id'].toString(),
+                  'nama_kayu': item['nama_kayu'],
+                  'prices': item['prices'],
+                },
+              )
+              .toList();
+        });
+      }
+    } catch (error) {
+      print('Error loading kayu: $error');
+    }
   }
 
   void _generateNoFaktur() {
@@ -68,9 +138,11 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
   void handleAddOrUpdate() {
     if (diameter.isEmpty || panjang.isEmpty) return;
 
-    double d = double.parse(diameter);
-    double p = double.parse(panjang);
+    double d = double.tryParse(diameter) ?? 0;
+    double p = double.tryParse(panjang) ?? 0;
+    if (d == 0 || p == 0) return;
 
+    // 1. Tentukan kriteria berdasarkan custom atau diameter
     String currentKriteria = selectedCustomKriteria ?? '';
     if (currentKriteria.isEmpty) {
       if (d >= 10 && d <= 14) {
@@ -84,6 +156,43 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
       }
     }
 
+    // 2. Normalisasi label ke format map harga
+    String normalizeKriteria(String label) {
+      switch (label) {
+        case 'R1':
+          return 'Rijek 1';
+        case 'R2':
+          return 'Rijek 2';
+        case 'St':
+          return 'Standar';
+        case 'Sp A':
+          return 'Super A';
+        case 'Sp B':
+          return 'Super B';
+        case 'Sp C':
+          return 'Super C';
+        default:
+          return label;
+      }
+    }
+
+    currentKriteria = normalizeKriteria(currentKriteria);
+
+    print('Harga map: $harga');
+    print('Current kriteria: $currentKriteria');
+
+    // 3. Ambil harga dari map berdasarkan kriteria
+    int hargaSatuan = ((harga[currentKriteria] ?? 0) as double).round();
+    if (hargaSatuan <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Harga tidak ditemukan untuk grade $currentKriteria'),
+        ),
+      );
+      return;
+    }
+
+    // 4. Hitung volume (cek custom volume dulu)
     var custom = customVolumes.firstWhere(
       (c) => c['diameter'] == d,
       orElse: () => {},
@@ -91,17 +200,21 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
 
     double volume;
     if (custom.isNotEmpty) {
-      volume = custom['volume'].toDouble();
+      volume = (custom['volume'] ?? 0).toDouble();
     } else {
       double rawVolume = (0.785 * d * d * p) / 1000;
       double decimal = rawVolume - rawVolume.floor();
+      print(
+        'custom volume: ${custom['volume']} (type: ${custom['volume']?.runtimeType})',
+      );
       volume = (decimal >= 0.6 ? rawVolume.floor() + 1 : rawVolume.floor())
           .toDouble();
     }
 
-    int hargaSatuan = int.tryParse(harga[currentKriteria] ?? '') ?? 0;
+    // 5. Hitung total harga
     int jumlahHarga = (volume * hargaSatuan).round();
 
+    // 6. Cek apakah item ini sudah ada
     int existingIndex = data.indexWhere(
       (item) =>
           item['diameter'] == d &&
@@ -111,6 +224,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
 
     List<Map<String, dynamic>> updatedData;
     if (existingIndex >= 0) {
+      // Update jumlah dan total
       updatedData = List<Map<String, dynamic>>.from(data);
       var item = updatedData[existingIndex];
       int newJumlah = item['jumlah'] + 1;
@@ -124,6 +238,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
         latestItemId = updatedData[existingIndex]['id'];
       });
     } else {
+      // Tambah item baru
       var newItem = {
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'kriteria': currentKriteria,
@@ -140,6 +255,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
       });
     }
 
+    // 7. Update state data dan scroll ke bawah
     setState(() {
       data = updatedData;
     });
@@ -582,6 +698,8 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                               ),
                               TableCell(
                                 child: Row(
+                                  mainAxisSize:
+                                      MainAxisSize.min, // <<< tambahkan ini
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     IconButton(
@@ -698,7 +816,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
         ),
       ),
 
-      // Modal Input Data Pembelian
+      // Modal Input Data Pembelian - DIPERBAIKI
       floatingActionButton: modalVisible
           ? Container(
               margin: EdgeInsets.all(20),
@@ -725,38 +843,124 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                   SizedBox(height: 20),
                   Text('No Faktur: $noFaktur'),
                   SizedBox(height: 10),
-                  TextField(
+
+                  // Dropdown untuk memilih Penjual
+                  DropdownButtonFormField<String>(
                     decoration: InputDecoration(
-                      labelText: 'Nama Penjual',
+                      labelText: 'Pilih Penjual',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => penjual = value),
+                    value: selectedPenjualId,
+                    items: daftarPenjual.map<DropdownMenuItem<String>>((
+                      penjual,
+                    ) {
+                      final idStr = penjual['id']?.toString() ?? '';
+                      return DropdownMenuItem<String>(
+                        value: idStr,
+                        child: Text(penjual['nama']?.toString() ?? ''),
+                      );
+                    }).toList(),
+                    onChanged: (String? value) {
+                      setState(() {
+                        selectedPenjualId = value;
+                        final selected = daftarPenjual.firstWhere(
+                          (p) => p['id']?.toString() == value,
+                          orElse: () => <String, dynamic>{},
+                        );
+                        if (selected.isNotEmpty) {
+                          selectedPenjualNama = selected['nama']?.toString();
+                          selectedPenjualAlamat = selected['alamat']
+                              ?.toString();
+                          penjual = selectedPenjualNama ?? '';
+                          alamat = selectedPenjualAlamat ?? '';
+                        }
+                      });
+                    },
                   ),
+
                   SizedBox(height: 10),
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Alamat Penjual',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (value) => setState(() => alamat = value),
-                  ),
+                  Text('Alamat: ${selectedPenjualAlamat ?? ''}'),
                   SizedBox(height: 10),
-                  TextField(
+
+                  // Dropdown untuk memilih Kayu
+                  DropdownButtonFormField<String>(
+                    isExpanded: true, // biar teks tidak terpotong
                     decoration: InputDecoration(
-                      labelText: 'Nama Kayu',
+                      labelText: 'Pilih Jenis Kayu',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: (value) => setState(() => kayu = value),
+                    value:
+                        daftarKayu.any(
+                          (k) => k['id'].toString() == selectedKayuId,
+                        )
+                        ? selectedKayuId
+                        : null,
+                    items: daftarKayu.map<DropdownMenuItem<String>>((kayu) {
+                      final idStr = kayu['id']?.toString() ?? '';
+                      return DropdownMenuItem<String>(
+                        value: idStr,
+                        child: Text(kayu['nama_kayu']?.toString() ?? ''),
+                      );
+                    }).toList(),
+                    onChanged: (String? value) {
+                      setState(() {
+                        selectedKayuId = value;
+                        final selected = daftarKayu.firstWhere(
+                          (k) => k['id']?.toString() == value,
+                          orElse: () => <String, dynamic>{},
+                        );
+                        if (selected.isNotEmpty) {
+                          selectedKayuNama = selected['nama_kayu']?.toString();
+                          kayu = selectedKayuNama ?? '';
+                          if (selected['prices'] is Map) {
+                            final pricesMap = Map<String, dynamic>.from(
+                              selected['prices'],
+                            );
+                            harga = pricesMap.map(
+                              (k, v) => MapEntry(k.toString(), v.toString()),
+                            );
+                          } else {
+                            harga = {
+                              'Rijek 1':
+                                  pricesMap['Rijek 1']?.toString() ?? '0',
+                              'Rijek 2':
+                                  pricesMap['Rijek 2']?.toString() ?? '0',
+                              'Standar':
+                                  pricesMap['Standar']?.toString() ?? '0',
+                              'Super A':
+                                  pricesMap['Super A']?.toString() ?? '0',
+                              'Super B':
+                                  pricesMap['Super B']?.toString() ?? '0',
+                              'Super C':
+                                  pricesMap['Super C']?.toString() ?? '0',
+                            };
+                          }
+                        }
+                      });
+                    },
                   ),
+
                   SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
-                            setState(() {
-                              modalVisible = false;
-                            });
+                            if (selectedPenjualId != null &&
+                                selectedKayuId != null) {
+                              setState(() {
+                                modalVisible = false;
+                                selectedKayuId = null;
+                              });
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Pilih penjual dan jenis kayu terlebih dahulu',
+                                  ),
+                                ),
+                              );
+                            }
                           },
                           child: Text('Simpan'),
                         ),
@@ -767,6 +971,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                           onPressed: () {
                             setState(() {
                               modalVisible = false;
+                              selectedKayuId = null;
                             });
                           },
                           child: Text('Batal'),

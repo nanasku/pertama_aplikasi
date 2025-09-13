@@ -23,7 +23,7 @@ app.use('/api/harga-jual', masterJualRoutes);
 app.use('/api/pembeli', pembeliRoutes);
 app.use('/api/penjual', penjualRoutes);
 // app.use('/api/penjualan', penjualanRoutes);
-// app.use('/api/pembelian', pembelianRoutes);
+app.use('/api/pembelian', pembelianRoutes);
 
 // Test route
 app.get('/api/test', (req, res) => {

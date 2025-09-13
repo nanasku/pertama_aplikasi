@@ -4,7 +4,7 @@ const db = require('../db');
 
 // GET semua data harga jual
 router.get('/', (req, res) => {
-  const query = 'SELECT * FROM harga_jual ORDER BY name';
+  const query = 'SELECT * FROM harga_jual ORDER BY nama_kayu';
   
   db.query(query, (err, results) => {
     if (err) {
@@ -15,7 +15,7 @@ router.get('/', (req, res) => {
     // Format data sesuai dengan struktur frontend
     const formattedResults = results.map(item => ({
       id: item.id,
-      name: item.name,
+      nama_kayu: item.nama_kayu,
       prices: {
         'Rijek 1': item.harga_rijek_1,
         'Rijek 2': item.harga_rijek_2,
@@ -50,7 +50,7 @@ router.get('/:id', (req, res) => {
     const item = results[0];
     const formattedResult = {
       id: item.id,
-      name: item.name,
+      nama_kayu: item.nama_kayu,
       prices: {
         'Rijek 1': item.harga_rijek_1,
         'Rijek 2': item.harga_rijek_2,
@@ -69,16 +69,16 @@ router.get('/:id', (req, res) => {
 
 // POST tambah data harga jual
 router.post('/', (req, res) => {
-  const { name, prices } = req.body;
+  const { nama_kayu, prices } = req.body;
   
   const query = `
     INSERT INTO harga_jual 
-    (name, harga_rijek_1, harga_rijek_2, harga_standar, harga_super_a, harga_super_b, harga_super_c) 
+    (nama_kayu, harga_rijek_1, harga_rijek_2, harga_standar, harga_super_a, harga_super_b, harga_super_c) 
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
   
   const values = [
-    name,
+    nama_kayu,
     prices['Rijek 1'] || 0,
     prices['Rijek 2'] || 0,
     prices['Standar'] || 0,
@@ -103,17 +103,17 @@ router.post('/', (req, res) => {
 // PUT update data harga jual
 router.put('/:id', (req, res) => {
   const { id } = req.params;
-  const { name, prices } = req.body;
+  const { nama_kayu, prices } = req.body;
   
   const query = `
     UPDATE harga_jual 
-    SET name = ?, harga_rijek_1 = ?, harga_rijek_2 = ?, harga_standar = ?, 
+    SET nama_kayu = ?, harga_rijek_1 = ?, harga_rijek_2 = ?, harga_standar = ?, 
         harga_super_a = ?, harga_super_b = ?, harga_super_c = ?, updated_at = CURRENT_TIMESTAMP 
     WHERE id = ?
   `;
   
   const values = [
-    name,
+    nama_kayu,
     prices['Rijek 1'] || 0,
     prices['Rijek 2'] || 0,
     prices['Standar'] || 0,

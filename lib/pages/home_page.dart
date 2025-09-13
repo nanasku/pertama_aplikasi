@@ -7,7 +7,8 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Dashboard')),
-      body: Padding(
+      body: SingleChildScrollView(
+        // Ganti Padding dengan SingleChildScrollView
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,15 +50,14 @@ class HomePage extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
-            Expanded(
-              child: ListView(
-                children: [
-                  _buildActivityItem('Penjualan baru', '10 menit lalu'),
-                  _buildActivityItem('Produk ditambahkan', '1 jam lalu'),
-                  _buildActivityItem('Pelanggan baru', '2 jam lalu'),
-                  _buildActivityItem('Pembayaran diterima', '5 jam lalu'),
-                ],
-              ),
+            // Ganti ListView dengan Column karena sudah bisa scroll dengan SingleChildScrollView
+            Column(
+              children: [
+                _buildActivityItem('Penjualan baru', '10 menit lalu'),
+                _buildActivityItem('Produk ditambahkan', '1 jam lalu'),
+                _buildActivityItem('Pelanggan baru', '2 jam lalu'),
+                _buildActivityItem('Pembayaran diterima', '5 jam lalu'),
+              ],
             ),
           ],
         ),
