@@ -3,6 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:excel/excel.dart';
 
 void main() {
   runApp(MaterialApp(home: TransaksiPembelian()));
@@ -62,6 +69,10 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
 
   @override
   void dispose() {
+    diameterController.dispose(); // ← ini ditambahkan auto focus
+    panjangController.dispose(); // ← ini ditambahkan auto focus
+    customDiameterController.dispose(); // ← ini ditambahkan auto focus
+    customVolumeController.dispose(); // ← ini ditambahkan auto focus
     _scrollController.dispose();
     super.dispose();
   }
@@ -80,6 +91,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+        print('Loaded ${data.length} penjual');
         setState(() {
           daftarPenjual = data
               .map(
@@ -107,6 +119,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+        print('Loaded ${data.length} kayu');
         setState(() {
           daftarKayu = data
               .map(
@@ -376,6 +389,212 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     });
   }
 
+  // Fungsi untuk menangani simpan transaksi
+  Future<void> _handleSimpanTransaksi() async {
+    if (data.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tidak ada data transaksi untuk disimpan')),
+      );
+      return;
+    }
+
+    // Debug informasi
+    print('selectedPenjualId: $selectedPenjualId');
+    print('selectedKayuId: $selectedKayuId');
+    print('penjual: $penjual');
+    print('kayu: $kayu');
+
+    if (selectedPenjualId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Pilih penjual terlebih dahulu')));
+      return;
+    }
+
+    if (selectedKayuId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pilih jenis kayu terlebih dahulu')),
+      );
+      return;
+    }
+
+    // Tanyakan apakah mau dicetak
+    bool? confirmPrint = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Konfirmasi'),
+          content: Text('Apakah Transaksi pembelian Mau Dicetak?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Tidak'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Simpan ke database terlepas dari pilihan cetak
+    await _simpanKeDatabase();
+
+    // Jika memilih OK, maka cetak struk
+    if (confirmPrint == true) {
+      await _cetakStruk();
+    }
+  }
+
+  // Fungsi untuk menyimpan ke database
+  Future<void> _simpanKeDatabase() async {
+    try {
+      double totalHarga = data.fold(
+        0,
+        (sum, item) => sum + (item['jumlahHarga'] as double),
+      );
+
+      // Siapkan data items dengan format yang sesuai untuk backend
+      List<Map<String, dynamic>> formattedItems = data.map((item) {
+        return {
+          'nama_kayu': kayu, // Nama kayu dari dropdown
+          'kriteria': item['kriteria'] ?? '',
+          'diameter': item['diameter'] ?? 0,
+          'panjang': item['panjang'] ?? 0,
+          'jumlah': item['jumlah'] ?? 0,
+          'volume': item['volume'] ?? 0,
+          'harga_beli': item['harga'] ?? 0, // Sesuai field di database
+          'jumlah_harga_beli':
+              item['jumlahHarga'] ?? 0, // Sesuai field di database
+        };
+      }).toList();
+
+      print('Mengirim data ke server:');
+      print('No Faktur: $noFaktur');
+      print('Penjual ID: $selectedPenjualId');
+      print('Product ID: $selectedKayuId');
+      print('Total: $totalHarga');
+      print('Items: $formattedItems');
+
+      final response = await http.post(
+        Uri.parse('${dotenv.env['API_BASE_URL']}/pembelian'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'no_faktur': noFaktur,
+          'penjual_id': selectedPenjualId, // Sesuai dengan field di backend
+          'product_id': selectedKayuId, // Sesuai dengan field di backend
+          'total': totalHarga,
+          'items': formattedItems,
+        }),
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 201) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Transaksi berhasil disimpan')));
+
+        // Reset data setelah berhasil disimpan
+        setState(() {
+          data = [];
+          _generateNoFaktur(); // Generate nomor faktur baru
+        });
+      } else {
+        throw Exception(
+          'Gagal menyimpan transaksi. Status: ${response.statusCode}',
+        );
+      }
+    } catch (error) {
+      print('Error menyimpan transaksi: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: Gagal menyimpan transaksi. Silakan coba lagi.'),
+        ),
+      );
+    }
+  }
+
+  // Fungsi untuk mencetak struk (kompatibel dengan Printer POS)
+  Future<void> _cetakStruk() async {
+    // Hitung total
+    double totalHarga = data.fold(
+      0,
+      (sum, item) => sum + (item['jumlahHarga'] as double),
+    );
+    double totalVolume = data.fold(
+      0,
+      (sum, item) => sum + (item['volume'] as double),
+    );
+
+    // Format struk untuk printer POS
+    String struk =
+        '''
+    ================================
+            TRANSAKSI PEMBELIAN
+    ================================
+    No Faktur: $noFaktur
+    Tanggal: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}
+    Penjual: $penjual
+    Kayu: $kayu
+    ================================
+    ${data.map((item) => '${getShortLabel(item['kriteria'])} D${item['diameter']} P${item['panjang']} '
+            'x${item['jumlah']} = ${item['volume']}m³\n'
+            '@${item['harga']} = ${item['jumlahHarga']}').join('\n--------------------------------\n')}
+    ================================
+    Total Volume: ${totalVolume.toStringAsFixed(2)} m³
+    Total Harga: Rp ${totalHarga.toStringAsFixed(0)}
+    ================================
+            TERIMA KASIH
+    ================================
+    ''';
+
+    // Untuk mencetak ke printer POS, Anda perlu menggunakan package khusus
+    // seperti esc_pos_printer atau flutter_blue_plus untuk Bluetooth printers
+    print(struk); // Ini hanya contoh di console
+
+    // Tampilkan preview struk
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Struk Pembelian'),
+        content: SingleChildScrollView(
+          child: Text(struk, style: TextStyle(fontFamily: 'Monospace')),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Fungsi untuk share PDF
+  Future<void> _sharePDF() async {
+    // Implementasi pembuatan PDF
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Fitur Share PDF akan segera hadir')),
+    );
+  }
+
+  // Fungsi untuk share Excel
+  Future<void> _shareExcel() async {
+    // Implementasi pembuatan Excel
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Fitur Share Excel akan segera hadir')),
+    );
+  }
+
+  TextEditingController diameterController = TextEditingController();
+  TextEditingController panjangController = TextEditingController();
+  TextEditingController customDiameterController = TextEditingController();
+  TextEditingController customVolumeController = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -468,6 +687,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                     children: [
                       Text('Panjang:'),
                       TextField(
+                        controller: panjangController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
@@ -477,6 +697,13 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                           hintText: 'Panjang',
                         ),
                         onChanged: (value) => setState(() => panjang = value),
+                        onTap: () {
+                          // Blok semua teks saat TextField diklik
+                          panjangController.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: panjangController.text.length,
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -488,6 +715,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                     children: [
                       Text('Diameter:'),
                       TextField(
+                        controller: diameterController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
@@ -497,6 +725,13 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                           hintText: 'Diameter',
                         ),
                         onChanged: (value) => setState(() => diameter = value),
+                        onTap: () {
+                          // Blok semua teks saat TextField diklik
+                          diameterController.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: diameterController.text.length,
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -756,6 +991,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                     children: [
                       Text('Diameter:'),
                       TextField(
+                        controller: customDiameterController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
@@ -766,6 +1002,13 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                         ),
                         onChanged: (value) =>
                             setState(() => customDiameter = value),
+                        onTap: () {
+                          // Blok semua teks saat TextField diklik
+                          customDiameterController.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: customDiameterController.text.length,
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -777,6 +1020,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                     children: [
                       Text('Volume:'),
                       TextField(
+                        controller: customVolumeController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
@@ -787,6 +1031,13 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                         ),
                         onChanged: (value) =>
                             setState(() => customVolumeValue = value),
+                        onTap: () {
+                          // Blok semua teks saat TextField diklik
+                          customVolumeController.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: customVolumeController.text.length,
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -828,6 +1079,38 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                 ],
               );
             }).toList(),
+
+            // Tambahkan di bagian bawah setelah Daftar Custom Volume
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () => _handleSimpanTransaksi(),
+                  child: Text('Simpan/Cetak'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => _sharePDF(),
+                  child: Text('Share PDF'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => _shareExcel(),
+                  child: Text('Share Excel'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[700],
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -900,7 +1183,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
 
                   // Dropdown untuk memilih Kayu
                   DropdownButtonFormField<String>(
-                    isExpanded: true, // biar teks tidak terpotong
+                    isExpanded: true,
                     decoration: InputDecoration(
                       labelText: 'Pilih Jenis Kayu',
                       border: OutlineInputBorder(),
@@ -925,9 +1208,11 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                           (k) => k['id']?.toString() == value,
                           orElse: () => <String, dynamic>{},
                         );
+
                         if (selected.isNotEmpty) {
                           selectedKayuNama = selected['nama_kayu']?.toString();
                           kayu = selectedKayuNama ?? '';
+
                           if (selected['prices'] is Map) {
                             final pricesMap = Map<String, dynamic>.from(
                               selected['prices'],
@@ -936,21 +1221,19 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                               (k, v) => MapEntry(k.toString(), v.toString()),
                             );
                           } else {
+                            // PERBAIKAN: Gunakan nilai default jika prices tidak valid
                             harga = {
-                              'Rijek 1':
-                                  pricesMap['Rijek 1']?.toString() ?? '0',
-                              'Rijek 2':
-                                  pricesMap['Rijek 2']?.toString() ?? '0',
-                              'Standar':
-                                  pricesMap['Standar']?.toString() ?? '0',
-                              'Super A':
-                                  pricesMap['Super A']?.toString() ?? '0',
-                              'Super B':
-                                  pricesMap['Super B']?.toString() ?? '0',
-                              'Super C':
-                                  pricesMap['Super C']?.toString() ?? '0',
+                              'Rijek 1': '0',
+                              'Rijek 2': '0',
+                              'Standar': '0',
+                              'Super A': '0',
+                              'Super B': '0',
+                              'Super C': '0',
                             };
                           }
+
+                          // Debug: Print untuk memastikan harga ter-set dengan benar
+                          print('Harga setelah pemilihan kayu: $harga');
                         }
                       });
                     },
@@ -962,11 +1245,15 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
+                            print(
+                              'Modal Simpan ditekan - selectedPenjualId: $selectedPenjualId, selectedKayuId: $selectedKayuId',
+                            );
+
                             if (selectedPenjualId != null &&
                                 selectedKayuId != null) {
                               setState(() {
                                 modalVisible = false;
-                                selectedKayuId = null;
+                                // JANGAN reset selectedKayuId di sini!
                               });
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -987,7 +1274,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                           onPressed: () {
                             setState(() {
                               modalVisible = false;
-                              selectedKayuId = null;
+                              // JANGAN reset selectedKayuId di sini!
                             });
                           },
                           child: Text('Batal'),

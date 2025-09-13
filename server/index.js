@@ -15,7 +15,7 @@ const masterJualRoutes = require('./routes/masterjual');
 const pembeliRoutes = require('./routes/pembeli');
 const penjualRoutes = require('./routes/penjual');
 // const penjualanRoutes = require('./routes/penjualan');
-// const pembelianRoutes = require('./routes/pembelian');
+const pembelianRoutes = require('./routes/pembelian');
 
 // Use routes dengan path yang benar
 app.use('/api/harga-beli', masterBeliRoutes);

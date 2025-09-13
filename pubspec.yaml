@@ -31,11 +31,18 @@ dependencies:
   flutter:
     sdk: flutter
   url_launcher: ^6.2.5
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   http: ^1.5.0
   flutter_dotenv: ^6.0.0
+  pdf: ^3.10.4
+  printing: ^5.12.0
+  share_plus: ^7.2.1
+  excel: ^2.0.6 # untuk ekspor Excel sederhana
+  path_provider: ^2.1.2
+  intl: ^0.18.1
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
 
 dev_dependencies:
   flutter_test:
