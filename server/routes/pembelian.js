@@ -1,6 +1,46 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const moment = require('moment');
+
+// Endpoint untuk mendapatkan nomor faktur baru
+router.get('/noFakturBaru', (req, res) => {
+  const query = "SELECT faktur_pemb FROM pembelian ORDER BY id DESC LIMIT 1";
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error("Error fetch last faktur:", err);
+      return res.status(500).json({ error: "Database error" });
+    }
+
+    let newFaktur;
+    const today = moment().format('DDMMYYYY');
+
+    if (results.length === 0) {
+      newFaktur = `PB-${today}-0001`;
+    } else {
+      const last = results[0].faktur_pemb;
+      const parts = last.split('-');
+
+      if (parts.length !== 3) {
+        newFaktur = `PB-${today}-0001`;
+      } else {
+        const datePart = parts[1];
+        const seqPart = parts[2];
+
+        let newSeq;
+        if (datePart === today) {
+          newSeq = String(parseInt(seqPart, 10) + 1).padStart(4, '0');
+        } else {
+          newSeq = "0001";
+        }
+
+        newFaktur = `PB-${today}-${newSeq}`;
+      }
+    }
+
+    res.json({ faktur_pemb: newFaktur });
+  });
+});
 
 // GET semua transaksi pembelian
 router.get('/', (req, res) => {
@@ -208,43 +248,67 @@ router.delete('/:id', (req, res) => {
   db.beginTransaction((err) => {
     if (err) {
       console.error('Error starting transaction:', err);
-      return res.status(500).json({ error: 'Database error' });
+      return res.status(500).json({ error: 'Database error - start transaction' });
     }
 
-    const deleteDetail = 'DELETE FROM pembelian_detail WHERE faktur_pemb = ?';
-    const deletePembelian = 'DELETE FROM pembelian WHERE id = ?';
+    // 1. Ambil faktur_pemb berdasarkan ID
+    const getFakturQuery = 'SELECT faktur_pemb FROM pembelian WHERE id = ?';
 
-    db.query(deleteDetail, [id], (err) => {
+    db.query(getFakturQuery, [id], (err, result) => {
       if (err) {
         return db.rollback(() => {
-          console.error('Error deleting detail:', err);
-          res.status(500).json({ error: 'Database error' });
+          console.error('Error fetching faktur_pemb:', err);
+          res.status(500).json({ error: 'Database error - fetch faktur' });
         });
       }
 
-      db.query(deletePembelian, [id], (err, results) => {
+      if (result.length === 0) {
+        return db.rollback(() => {
+          res.status(404).json({ error: 'Transaksi pembelian tidak ditemukan' });
+        });
+      }
+
+      const faktur_pemb = result[0].faktur_pemb;
+
+      // 2. Hapus detail berdasarkan faktur_pemb
+      const deleteDetailQuery = 'DELETE FROM pembelian_detail WHERE faktur_pemb = ?';
+
+      db.query(deleteDetailQuery, [faktur_pemb], (err) => {
         if (err) {
           return db.rollback(() => {
-            console.error('Error deleting pembelian:', err);
-            res.status(500).json({ error: 'Database error' });
+            console.error('Error deleting pembelian_detail:', err);
+            res.status(500).json({ error: 'Database error - delete detail' });
           });
         }
 
-        if (results.affectedRows === 0) {
-          return db.rollback(() => {
-            res.status(404).json({ error: 'Transaksi pembelian not found' });
-          });
-        }
+        // 3. Hapus data utama berdasarkan ID
+        const deletePembelianQuery = 'DELETE FROM pembelian WHERE id = ?';
 
-        db.commit((err) => {
+        db.query(deletePembelianQuery, [id], (err, result) => {
           if (err) {
             return db.rollback(() => {
-              console.error('Error committing delete:', err);
-              res.status(500).json({ error: 'Database error' });
+              console.error('Error deleting pembelian:', err);
+              res.status(500).json({ error: 'Database error - delete pembelian' });
             });
           }
 
-          res.json({ message: 'Transaksi pembelian deleted successfully' });
+          if (result.affectedRows === 0) {
+            return db.rollback(() => {
+              res.status(404).json({ error: 'Transaksi pembelian tidak ditemukan saat delete' });
+            });
+          }
+
+          // 4. Commit transaksi
+          db.commit((err) => {
+            if (err) {
+              return db.rollback(() => {
+                console.error('Error committing transaction:', err);
+                res.status(500).json({ error: 'Database error - commit' });
+              });
+            }
+
+            res.json({ message: 'Transaksi pembelian berhasil dihapus' });
+          });
         });
       });
     });

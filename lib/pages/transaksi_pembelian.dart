@@ -16,6 +16,8 @@ void main() {
 }
 
 class TransaksiPembelian extends StatefulWidget {
+  const TransaksiPembelian({super.key});
+
   @override
   _TransaksiPembelianState createState() => _TransaksiPembelianState();
 }
@@ -63,7 +65,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _generateNoFaktur();
+    getNoFakturBaru();
     _loadDataDariDatabase();
   }
 
@@ -75,6 +77,39 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     customVolumeController.dispose(); // ← ini ditambahkan auto focus
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void resetForm() {
+    setState(() {
+      panjangController.clear();
+      diameterController.clear();
+      customDiameterController.clear();
+      customVolumeController.clear();
+
+      selectedCustomKriteria = null;
+      selectedPenjualId = null;
+      selectedPenjualNama = null;
+      selectedPenjualAlamat = null;
+      selectedKayuId = null;
+      selectedKayuNama = null;
+
+      penjual = ''; // reset teks penjual
+      alamat = ''; // reset alamat
+      kayu = ''; // reset nama kayu
+
+      data.clear(); // kosongkan tabel detail
+    });
+
+    // generate faktur baru lagi
+    getNoFakturBaru();
+  }
+
+  double get totalVolume {
+    return data.fold(0, (sum, item) => sum + (item['volume'] * item['jumlah']));
+  }
+
+  double get totalHarga {
+    return data.fold(0, (sum, item) => sum + item['jumlahHarga']);
   }
 
   // Fungsi untuk memuat data dari database
@@ -137,15 +172,23 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     }
   }
 
-  void _generateNoFaktur() {
-    DateTime now = DateTime.now();
-    String datePart =
-        '${now.day.toString().padLeft(2, '0')}${now.month.toString().padLeft(2, '0')}${now.year}';
-    // In a real app, you would get the next sequence number from the database
-    String sequencePart = '0001';
-    setState(() {
-      noFaktur = 'PB-$datePart-$sequencePart';
-    });
+  Future<void> getNoFakturBaru() async {
+    try {
+      final response = await http.get(
+        Uri.parse("http://localhost:3000/api/pembelian/noFakturBaru"),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          noFaktur = data['faktur_pemb']; // <-- isi ke state
+        });
+      } else {
+        print("Gagal ambil no faktur: ${response.body}");
+      }
+    } catch (e) {
+      print("Error fetch noFakturBaru: $e");
+    }
   }
 
   void handleAddOrUpdate() {
@@ -438,14 +481,14 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
         );
       },
     );
-
-    // Simpan ke database terlepas dari pilihan cetak
+    // Simpan ke database
     await _simpanKeDatabase();
-
-    // Jika memilih OK, maka cetak struk
+    // Jika memilih cetak
     if (confirmPrint == true) {
       await _cetakStruk();
     }
+    // Baru reset form setelah cetak
+    resetForm();
   }
 
   // Fungsi untuk menyimpan ke database
@@ -497,12 +540,6 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Transaksi berhasil disimpan')));
-
-        // Reset data setelah berhasil disimpan
-        setState(() {
-          data = [];
-          _generateNoFaktur(); // Generate nomor faktur baru
-        });
       } else {
         throw Exception(
           'Gagal menyimpan transaksi. Status: ${response.statusCode}',
@@ -518,6 +555,31 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     }
   }
 
+  final formatter = NumberFormat('#,###', 'id_ID');
+
+  String formatItem(item) {
+    // Baris 1: Identitas barang
+    String kriteria = getShortLabel(item['kriteria']); // e.g., 'R 1'
+    String diameter = 'D${item['diameter']}'; // e.g., 'D10'
+    String panjang = 'P${item['panjang']}'; // e.g., 'P130'
+    String jumlah = '@${item['jumlah']}'; // e.g., '@8'
+
+    String line1 =
+        '$kriteria $diameter $panjang $jumlah'; // Tidak perlu padding berlebih
+
+    // Baris 2: Kalkulasi — rata kanan
+    String volume = '${item['volume'].toStringAsFixed(0)}cm³';
+    String harga = formatter.format(item['harga']);
+    String jumlahHarga = formatter.format(item['jumlahHarga']);
+    String calc = '($volume x $harga) = $jumlahHarga';
+
+    // Asumsikan panjang struk maksimal 42 karakter, sesuaikan jika perlu
+    int totalLineLength = 42;
+    String line2 = calc.padLeft(totalLineLength);
+
+    return '$line1\n$line2';
+  }
+
   // Fungsi untuk mencetak struk (kompatibel dengan Printer POS)
   Future<void> _cetakStruk() async {
     // Hitung total
@@ -527,29 +589,28 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     );
     double totalVolume = data.fold(
       0,
-      (sum, item) => sum + (item['volume'] as double),
+      (sum, item) =>
+          sum + ((item['volume'] as double) * (item['jumlah'] as int)),
     );
 
     // Format struk untuk printer POS
     String struk =
         '''
-    ================================
-            TRANSAKSI PEMBELIAN
-    ================================
+    ========================================
+              TRANSAKSI PEMBELIAN
+    ========================================
     No Faktur: $noFaktur
     Tanggal: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}
     Penjual: $penjual
     Kayu: $kayu
-    ================================
-    ${data.map((item) => '${getShortLabel(item['kriteria'])} D${item['diameter']} P${item['panjang']} '
-            'x${item['jumlah']} = ${item['volume']}m³\n'
-            '@${item['harga']} = ${item['jumlahHarga']}').join('\n--------------------------------\n')}
-    ================================
-    Total Volume: ${totalVolume.toStringAsFixed(2)} m³
-    Total Harga: Rp ${totalHarga.toStringAsFixed(0)}
-    ================================
-            TERIMA KASIH
-    ================================
+    ========================================
+    ${data.map((item) => formatItem(item)).join('\n--------------------------------\n')}
+    ========================================
+    Total Volume: ${totalVolume.toStringAsFixed(2).padLeft(32)} cm³
+    Total Harga  : ${formatter.format(totalHarga).padLeft(29)}
+    ========================================
+                  TERIMA KASIH
+    ========================================
     ''';
 
     // Untuk mencetak ke printer POS, Anda perlu menggunakan package khusus
@@ -574,20 +635,141 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     );
   }
 
-  // Fungsi untuk share PDF
-  Future<void> _sharePDF() async {
-    // Implementasi pembuatan PDF
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Fitur Share PDF akan segera hadir')),
-    );
+  // === Ambil transaksi terakhir hari ini dari backend ===
+  Future _getLastTransactionToday() async {
+    try {
+      final today = DateFormat('ddMMyyyy').format(DateTime.now());
+
+      final response = await http.get(
+        Uri.parse(
+          '${dotenv.env['API_BASE_URL']}/pembelian?today=$today&last=1',
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List && data.isNotEmpty) {
+          return data.first;
+        }
+        if (data is Map) {
+          return data;
+        }
+      }
+    } catch (e) {
+      print("Error fetch last transaction: $e");
+    }
+    return null;
   }
 
-  // Fungsi untuk share Excel
-  Future<void> _shareExcel() async {
-    // Implementasi pembuatan Excel
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Fitur Share Excel akan segera hadir')),
+  // === SHARE PDF ===
+  Future<void> _sharePDF() async {
+    final trx = await _getLastTransactionToday();
+    if (trx == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Tidak ada transaksi hari ini')));
+      return;
+    }
+
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Struk Pembelian', style: pw.TextStyle(fontSize: 18)),
+              pw.SizedBox(height: 10),
+              pw.Text('No Faktur: ${trx['faktur_pemb']}'),
+              pw.Text('Tanggal : ${trx['created_at']}'),
+              pw.Text('Penjual : ${trx['nama_penjual'] ?? ''}'),
+              pw.Text('Kayu    : ${trx['nama_barang'] ?? ''}'),
+              pw.Divider(),
+              pw.Text('Detail Pembelian:'),
+              if (trx['detail'] != null && trx['detail'] is List)
+                ...trx['detail'].map<pw.Widget>((item) {
+                  return pw.Text(
+                    '${item['kriteria']} D${item['diameter']} '
+                    'P${item['panjang']} x${item['jumlah']} '
+                    '= ${item['jumlah_harga_beli']}',
+                  );
+                }),
+              pw.Divider(),
+              pw.Text('Total: ${trx['total']}'),
+            ],
+          );
+        },
+      ),
     );
+
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/transaksi_${trx['faktur_pemb']}.pdf');
+    await file.writeAsBytes(await pdf.save());
+
+    await Share.shareXFiles([
+      XFile(file.path),
+    ], text: 'Transaksi Pembelian ${trx['faktur_pemb']}');
+  }
+
+  // === SHARE EXCEL ===
+  Future<void> _shareExcel() async {
+    final trx = await _getLastTransactionToday();
+    if (trx == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Tidak ada transaksi hari ini')));
+      return;
+    }
+
+    final excel = Excel.createExcel();
+    final sheet = excel['Pembelian'];
+
+    // Header utama
+    sheet.appendRow(['No Faktur', trx['faktur_pemb']]);
+    sheet.appendRow(['Tanggal', trx['created_at']]);
+    sheet.appendRow(['Penjual', trx['nama_penjual'] ?? '']);
+    sheet.appendRow(['Kayu', trx['nama_barang'] ?? '']);
+    sheet.appendRow([]);
+    sheet.appendRow([
+      'Kriteria',
+      'Diameter',
+      'Panjang',
+      'Jumlah',
+      'Volume',
+      'Harga',
+      'Total',
+    ]);
+
+    // Detail transaksi
+    if (trx['detail'] != null && trx['detail'] is List) {
+      for (var item in trx['detail']) {
+        sheet.appendRow([
+          item['kriteria'],
+          item['diameter'],
+          item['panjang'],
+          item['jumlah'],
+          item['volume'],
+          item['harga_beli'],
+          item['jumlah_harga_beli'],
+        ]);
+      }
+    } else {
+      sheet.appendRow(['Tidak ada detail transaksi']);
+    }
+
+    // Total akhir
+    sheet.appendRow([]);
+    sheet.appendRow(['Total', trx['total']]);
+
+    // Simpan file Excel ke direktori temporary
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/transaksi_${trx['faktur_pemb']}.xlsx');
+    await file.writeAsBytes(excel.encode()!);
+
+    // Share via WhatsApp (atau aplikasi lain di Android/iOS)
+    await Share.shareXFiles([
+      XFile(file.path),
+    ], text: 'Excel Transaksi ${trx['faktur_pemb']}');
   }
 
   TextEditingController diameterController = TextEditingController();
@@ -862,7 +1044,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
             ),
 
             // Isi Tabel dengan Scroll
-            Container(
+            SizedBox(
               height: 250,
               child: Scrollbar(
                 child: ListView.builder(
@@ -1078,7 +1260,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                   ),
                 ],
               );
-            }).toList(),
+            }),
 
             // Tambahkan di bagian bawah setelah Daftar Custom Volume
             SizedBox(height: 20),
@@ -1087,27 +1269,27 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
               children: [
                 ElevatedButton(
                   onPressed: () => _handleSimpanTransaksi(),
-                  child: Text('Simpan/Cetak'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
                   ),
+                  child: Text('Simpan/Cetak'),
                 ),
                 ElevatedButton(
                   onPressed: () => _sharePDF(),
-                  child: Text('Share PDF'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                   ),
+                  child: Text('Share PDF'),
                 ),
                 ElevatedButton(
                   onPressed: () => _shareExcel(),
-                  child: Text('Share Excel'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[700],
                     foregroundColor: Colors.white,
                   ),
+                  child: Text('Share Excel'),
                 ),
               ],
             ),
@@ -1149,7 +1331,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                       labelText: 'Pilih Penjual',
                       border: OutlineInputBorder(),
                     ),
-                    value: selectedPenjualId,
+                    initialValue: selectedPenjualId,
                     items: daftarPenjual.map<DropdownMenuItem<String>>((
                       penjual,
                     ) {
@@ -1188,7 +1370,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                       labelText: 'Pilih Jenis Kayu',
                       border: OutlineInputBorder(),
                     ),
-                    value:
+                    initialValue:
                         daftarKayu.any(
                           (k) => k['id'].toString() == selectedKayuId,
                         )
