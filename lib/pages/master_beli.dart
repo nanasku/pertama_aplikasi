@@ -26,8 +26,50 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
   String errorMessage = '';
 
   // Base URL untuk API (sesuaikan dengan environment Anda)
-  static final String baseUrl =
-      dotenv.env['API_BASE_URL']!; // Ganti dengan URL server Anda
+  static final String baseUrl = dotenv.env['API_BASE_URL']!;
+
+  // Fungsi untuk memformat angka tanpa .00
+  String formatNumber(dynamic value) {
+    if (value == null) return '0';
+
+    // Jika value adalah string, coba konversi ke double dulu
+    double number;
+    if (value is String) {
+      number = double.tryParse(value) ?? 0;
+    } else if (value is int) {
+      number = value.toDouble();
+    } else {
+      number = value;
+    }
+
+    // Hapus .00 jika angka bulat
+    if (number % 1 == 0) {
+      return number.toInt().toString();
+    } else {
+      return number.toString();
+    }
+  }
+
+  // Fungsi untuk memformat harga tanpa .00
+  String formatPrice(dynamic value) {
+    if (value == null) return '0';
+
+    double number;
+    if (value is String) {
+      number = double.tryParse(value) ?? 0;
+    } else if (value is int) {
+      number = value.toDouble();
+    } else {
+      number = value;
+    }
+
+    // Hapus .00 jika angka bulat
+    if (number % 1 == 0) {
+      return number.toInt().toString();
+    } else {
+      return number.toStringAsFixed(0); // Hapus desimal untuk harga
+    }
+  }
 
   @override
   void initState() {
@@ -120,7 +162,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
         // Refresh data setelah berhasil menghapus
         _fetchProducts();
       } else {
-        throw Exception('Gagal menghapus log barang: ${response.statusCode}');
+        throw Exception('Gagal menghapus produk: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Terjadi kesalahan: $e');
@@ -130,9 +172,9 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
   void _showEditProductDialog(Map<String, dynamic> product) {
     Map<String, TextEditingController> controllers = {};
 
-    // Initialize controllers with current values
+    // Initialize controllers with current values (format tanpa .00)
     product['prices'].forEach((key, value) {
-      controllers[key] = TextEditingController(text: value.toString());
+      controllers[key] = TextEditingController(text: formatPrice(value));
     });
 
     TextEditingController nameController = TextEditingController(
@@ -143,7 +185,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Edit Harga Log Barang'),
+          title: Text('Edit Harga Produk'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -196,7 +238,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
                   Navigator.of(context).pop();
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal mengupdate log barang: $e')),
+                    SnackBar(content: Text('Gagal mengupdate produk: $e')),
                   );
                 }
               },
@@ -230,7 +272,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Tambah Log Baru'),
+          title: Text('Tambah Produk Baru'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -283,7 +325,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
                   Navigator.of(context).pop();
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal menambah log barang: $e')),
+                    SnackBar(content: Text('Gagal menambah produk: $e')),
                   );
                 }
               },
@@ -300,7 +342,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Hapus Log Barang'),
+          title: Text('Hapus Produk'),
           content: Text('Apakah Anda yakin ingin menghapus $nama_kayu?'),
           actions: [
             TextButton(
@@ -314,7 +356,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
                   Navigator.of(context).pop();
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal menghapus log barang: $e')),
+                    SnackBar(content: Text('Gagal menghapus produk: $e')),
                   );
                 }
               },
@@ -331,7 +373,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Harga Log Pembelian'),
+        title: Text('Manajemen Produk'),
         actions: [
           IconButton(icon: Icon(Icons.refresh), onPressed: _fetchProducts),
           IconButton(icon: Icon(Icons.add), onPressed: _showAddProductDialog),
@@ -342,7 +384,7 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
           : errorMessage.isNotEmpty
           ? Center(child: Text(errorMessage))
           : products.isEmpty
-          ? Center(child: Text('Tidak ada data Log Barang'))
+          ? Center(child: Text('Tidak ada data produk'))
           : ListView.builder(
               padding: EdgeInsets.all(16),
               itemCount: products.length,
@@ -373,9 +415,9 @@ class _MasterBeliPageState extends State<MasterBeliPage> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Rijek 1: Rp ${product['prices']['Rijek 1']}'),
-            Text('Rijek 2: Rp ${product['prices']['Rijek 2']}'),
-            Text('Standar: Rp ${product['prices']['Standar']}'),
+            Text('Rijek 1: Rp ${formatPrice(product['prices']['Rijek 1'])}'),
+            Text('Rijek 2: Rp ${formatPrice(product['prices']['Rijek 2'])}'),
+            Text('Standar: Rp ${formatPrice(product['prices']['Standar'])}'),
           ],
         ),
         trailing: Row(

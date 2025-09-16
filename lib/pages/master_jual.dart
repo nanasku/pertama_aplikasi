@@ -28,6 +28,49 @@ class _MasterJualPageState extends State<MasterJualPage> {
   // Base URL untuk API (sesuaikan dengan environment Anda)
   static final String baseUrl = dotenv.env['API_BASE_URL']!;
 
+  // Fungsi untuk memformat angka tanpa .00
+  String formatNumber(dynamic value) {
+    if (value == null) return '0';
+
+    // Jika value adalah string, coba konversi ke double dulu
+    double number;
+    if (value is String) {
+      number = double.tryParse(value) ?? 0;
+    } else if (value is int) {
+      number = value.toDouble();
+    } else {
+      number = value;
+    }
+
+    // Hapus .00 jika angka bulat
+    if (number % 1 == 0) {
+      return number.toInt().toString();
+    } else {
+      return number.toString();
+    }
+  }
+
+  // Fungsi untuk memformat harga tanpa .00
+  String formatPrice(dynamic value) {
+    if (value == null) return '0';
+
+    double number;
+    if (value is String) {
+      number = double.tryParse(value) ?? 0;
+    } else if (value is int) {
+      number = value.toDouble();
+    } else {
+      number = value;
+    }
+
+    // Hapus .00 jika angka bulat
+    if (number % 1 == 0) {
+      return number.toInt().toString();
+    } else {
+      return number.toStringAsFixed(0); // Hapus desimal untuk harga
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -129,9 +172,9 @@ class _MasterJualPageState extends State<MasterJualPage> {
   void _showEditProductDialog(Map<String, dynamic> product) {
     Map<String, TextEditingController> controllers = {};
 
-    // Initialize controllers with current values
+    // Initialize controllers with current values (format tanpa .00)
     product['prices'].forEach((key, value) {
-      controllers[key] = TextEditingController(text: value.toString());
+      controllers[key] = TextEditingController(text: formatPrice(value));
     });
 
     TextEditingController nameController = TextEditingController(
@@ -372,9 +415,9 @@ class _MasterJualPageState extends State<MasterJualPage> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Rijek 1: Rp ${product['prices']['Rijek 1']}'),
-            Text('Rijek 2: Rp ${product['prices']['Rijek 2']}'),
-            Text('Standar: Rp ${product['prices']['Standar']}'),
+            Text('Rijek 1: Rp ${formatPrice(product['prices']['Rijek 1'])}'),
+            Text('Rijek 2: Rp ${formatPrice(product['prices']['Rijek 2'])}'),
+            Text('Standar: Rp ${formatPrice(product['prices']['Standar'])}'),
           ],
         ),
         trailing: Row(

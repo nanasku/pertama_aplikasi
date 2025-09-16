@@ -555,7 +555,11 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     }
   }
 
-  final formatter = NumberFormat('#,###', 'id_ID');
+  final formatter = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: '', // kosongkan jika tidak mau "Rp"
+    decimalDigits: 0, // Tidak pakai desimal
+  );
 
   String formatItem(item) {
     // Baris 1: Identitas barang

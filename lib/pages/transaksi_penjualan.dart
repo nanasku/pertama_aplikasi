@@ -285,6 +285,9 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
       double decimal = rawVolume - rawVolume.floor();
       volume = (decimal >= 0.6 ? rawVolume.floor() + 1 : rawVolume.floor())
           .toDouble();
+
+      // Pastikan volume menjadi integer
+      volume = volume.roundToDouble(); // PERBAIKAN
     }
 
     // 5. Hitung total harga
@@ -559,21 +562,19 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
 
   String formatItem(item) {
     // Baris 1: Identitas barang
-    String kriteria = getShortLabel(item['kriteria']); // e.g., 'R 1'
-    String diameter = 'D${item['diameter']}'; // e.g., 'D10'
-    String panjang = 'P${item['panjang']}'; // e.g., 'P130'
-    String jumlah = '@${item['jumlah']}'; // e.g., '@8'
+    String kriteria = getShortLabel(item['kriteria']);
+    String diameter = 'D${item['diameter'].toStringAsFixed(0)}'; // PERBAIKAN
+    String panjang = 'P${item['panjang'].toStringAsFixed(0)}'; // PERBAIKAN
+    String jumlah = '@${item['jumlah'].toStringAsFixed(0)}'; // PERBAIKAN
 
-    String line1 =
-        '$kriteria $diameter $panjang $jumlah'; // Tidak perlu padding berlebih
+    String line1 = '$kriteria $diameter $panjang $jumlah';
 
     // Baris 2: Kalkulasi — rata kanan
-    String volume = '${item['volume'].toStringAsFixed(0)}cm³';
+    String volume = '${item['volume'].toStringAsFixed(0)}cm³'; // PERBAIKAN
     String harga = formatter.format(item['harga']);
     String jumlahHarga = formatter.format(item['jumlahHarga']);
     String calc = '($volume x $harga) = $jumlahHarga';
 
-    // Asumsikan panjang struk maksimal 42 karakter, sesuaikan jika perlu
     int totalLineLength = 42;
     String line2 = calc.padLeft(totalLineLength);
 
@@ -606,7 +607,7 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
     ========================================
     ${data.map((item) => formatItem(item)).join('\n--------------------------------\n')}
     ========================================
-    Total Volume: ${totalVolume.toStringAsFixed(2).padLeft(32)} cm³
+    Total Volume: ${totalVolume.toStringAsFixed(0).padLeft(32)} cm³
     Total Harga  : ${formatter.format(totalHarga).padLeft(29)}
     ========================================
                   TERIMA KASIH
@@ -1085,67 +1086,70 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
                                 child: Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(4),
-                                    child: Text(item['diameter'].toString()),
+                                    child: Text(
+                                      item['diameter'].toStringAsFixed(0),
+                                    ), // PERBAIKAN
                                   ),
                                 ),
                               ),
+
+                              // Untuk panjang
                               TableCell(
                                 child: Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(4),
-                                    child: Text(item['panjang'].toString()),
+                                    child: Text(
+                                      item['panjang'].toStringAsFixed(0),
+                                    ), // PERBAIKAN
                                   ),
                                 ),
                               ),
+
+                              // Untuk jumlah
                               TableCell(
                                 child: Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(4),
-                                    child: Text(item['jumlah'].toString()),
+                                    child: Text(
+                                      item['jumlah'].toStringAsFixed(0),
+                                    ), // PERBAIKAN
                                   ),
                                 ),
                               ),
+
+                              // Untuk volume
                               TableCell(
                                 child: Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(4),
-                                    child: Text(item['volume'].toString()),
+                                    child: Text(
+                                      item['volume'].toStringAsFixed(0),
+                                    ), // PERBAIKAN
                                   ),
                                 ),
                               ),
+
+                              // Untuk harga - gunakan formatter untuk format ribuan
                               TableCell(
                                 child: Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(4),
-                                    child: Text(item['harga'].toString()),
+                                    child: Text(
+                                      formatter.format(item['harga']),
+                                    ), // PERBAIKAN
                                   ),
                                 ),
                               ),
+
+                              // Untuk jumlahHarga - gunakan formatter untuk format ribuan
                               TableCell(
                                 child: Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(4),
-                                    child: Text(item['jumlahHarga'].toString()),
+                                    child: Text(
+                                      formatter.format(item['jumlahHarga']),
+                                    ), // PERBAIKAN
                                   ),
-                                ),
-                              ),
-                              TableCell(
-                                child: Row(
-                                  mainAxisSize:
-                                      MainAxisSize.min, // <<< tambahkan ini
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(Icons.remove),
-                                      onPressed: () =>
-                                          handleDecrement(item['id']),
-                                    ),
-                                    IconButton(
-                                      icon: Icon(Icons.add),
-                                      onPressed: () =>
-                                          updateJumlah(item['id'], 1),
-                                    ),
-                                  ],
                                 ),
                               ),
                             ],
@@ -1247,7 +1251,9 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
             ...customVolumes.map((c) {
               return Row(
                 children: [
-                  Text('Diameter ${c['diameter']}: Volume ${c['volume']}'),
+                  Text(
+                    'Diameter ${c['diameter'].toStringAsFixed(0)}: Volume ${c['volume'].toStringAsFixed(0)}',
+                  ),
                   IconButton(
                     icon: Icon(Icons.delete),
                     onPressed: () {

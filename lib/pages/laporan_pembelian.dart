@@ -24,6 +24,21 @@ class _LaporanPembelianState extends State<LaporanPembelian> {
   DateTime? _selectedMonth;
   String? _selectedPenjualId;
 
+  String _getLaporanTitle() {
+    if (_selectedFilterIndex == 0 && _selectedDate != null) {
+      return 'Laporan Pembelian Harian (${DateFormat("dd/MM/yyyy").format(_selectedDate!)})';
+    } else if (_selectedFilterIndex == 1 && _selectedMonth != null) {
+      return 'Laporan Pembelian Bulan ${DateFormat("MMMM yyyy", "id_ID").format(_selectedMonth!)}';
+    } else if (_selectedFilterIndex == 2 && _selectedPenjualId != null) {
+      final penjual = daftarPenjual.firstWhere(
+        (p) => p['id'] == _selectedPenjualId,
+        orElse: () => {'nama': '-'},
+      );
+      return 'Laporan Pembelian oleh ${penjual['nama']}';
+    }
+    return 'Laporan Pembelian';
+  }
+
   // Controller untuk dropdown bulan
   final TextEditingController _monthController = TextEditingController();
 
@@ -96,24 +111,39 @@ class _LaporanPembelianState extends State<LaporanPembelian> {
 
     try {
       String url = '${dotenv.env['API_BASE_URL']}/pembelian';
-      Map<String, String> params = {};
+      Map<String, String> queryParams = {};
 
-      // ... [kode filter yang sudah ada] ...
+      // Terapkan filter sesuai tab yang aktif
+      if (_selectedFilterIndex == 0 && _selectedDate != null) {
+        // Filter Harian
+        queryParams['filter'] = 'harian';
+        queryParams['tanggal'] = DateFormat(
+          'yyyy-MM-dd',
+        ).format(_selectedDate!);
+      } else if (_selectedFilterIndex == 1 && _selectedMonth != null) {
+        // Filter Bulanan
+        queryParams['filter'] = 'bulanan';
+        queryParams['bulan'] = _selectedMonth!.month.toString().padLeft(2, '0');
+        queryParams['tahun'] = _selectedMonth!.year.toString();
+      } else if (_selectedFilterIndex == 2 && _selectedPenjualId != null) {
+        // Filter Penjual
+        queryParams['filter'] = 'penjual';
+        queryParams['penjual_id'] = _selectedPenjualId!;
+      }
+
+      // Tambahkan query string kalau ada filter
+      if (queryParams.isNotEmpty) {
+        final uri = Uri.parse(url).replace(queryParameters: queryParams);
+        url = uri.toString();
+      }
 
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        print("Data received: ${data.length} items");
 
         setState(() {
           dataPembelian = data.map<Map<String, dynamic>>((item) {
-            // DEBUG: Print nilai asli dari API
-            print(
-              "Item total from API: ${item['total']}, Type: ${item['total'].runtimeType}",
-            );
-
-            // Handle konversi nilai total dengan benar
             double totalValue = 0.0;
 
             if (item['total'] is double) {
@@ -121,26 +151,8 @@ class _LaporanPembelianState extends State<LaporanPembelian> {
             } else if (item['total'] is int) {
               totalValue = item['total'].toDouble();
             } else if (item['total'] is String) {
-              String totalString = item['total'].toString().trim();
-
-              // Coba parse langsung sebagai double
-              totalValue = double.tryParse(totalString) ?? 0.0;
-
-              // Jika parsing gagal dan mengandung titik (format Indonesia)
-              if (totalValue == 0.0 && totalString.contains('.')) {
-                // Hapus semua titik (pemisah ribuan) dan coba parse lagi
-                String cleaned = totalString.replaceAll('.', '');
-                totalValue = double.tryParse(cleaned) ?? 0.0;
-              }
-
-              // Jika masih gagal, gunakan fungsi parsing khusus
-              if (totalValue == 0.0) {
-                totalValue = _parseIndonesianNumber(totalString);
-              }
+              totalValue = _parseIndonesianNumber(item['total'].toString());
             }
-
-            // DEBUG: Print hasil parsing
-            print("Parsed total value: $totalValue");
 
             return {
               'id': item['id'],
@@ -643,8 +655,6 @@ class _DetailPembelianPageState extends State<DetailPembelianPage> {
     );
   }
 
-  // Di dalam _buildDetailItems() method, perbaiki DataTable rows:
-  // Di dalam _buildDetailItems() method, perbaiki format jumlah_harga_beli:
   List<Widget> _buildDetailItems() {
     if (pembelianDetail!['detail'] == null ||
         pembelianDetail!['detail'].isEmpty) {
@@ -656,6 +666,7 @@ class _DetailPembelianPageState extends State<DetailPembelianPage> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           columns: const [
+            DataColumn(label: Text('Faktur')), // Tambah kolom faktur
             DataColumn(label: Text('Grd')),
             DataColumn(label: Text('D')),
             DataColumn(label: Text('P')),
@@ -664,43 +675,20 @@ class _DetailPembelianPageState extends State<DetailPembelianPage> {
             DataColumn(label: Text('Total')),
           ],
           rows: pembelianDetail!['detail'].map<DataRow>((item) {
-            // Handle konversi nilai jumlah_harga_beli dengan aman
             double jumlahHargaValue = 0.0;
             if (item['jumlah_harga_beli'] is double) {
               jumlahHargaValue = item['jumlah_harga_beli'];
             } else if (item['jumlah_harga_beli'] is int) {
               jumlahHargaValue = item['jumlah_harga_beli'].toDouble();
             } else if (item['jumlah_harga_beli'] is String) {
-              // Parse langsung dari string tanpa konversi khusus
               jumlahHargaValue =
                   double.tryParse(item['jumlah_harga_beli']) ?? 0.0;
             }
 
-            // Format angka tanpa desimal untuk diameter, panjang, jumlah, dan volume
-            String formatAngkaTanpaDesimal(dynamic value) {
+            String formatAngka(dynamic value) {
               if (value == null) return '-';
-              if (value is num) {
-                return value.toInt().toString();
-              }
+              if (value is num) return value.toInt().toString();
               if (value is String) {
-                // Coba parse ke double lalu ke int
-                final parsed = double.tryParse(value);
-                return parsed?.toInt().toString() ?? value;
-              }
-              return value.toString();
-            }
-
-            // Format volume tanpa desimal
-            String formatVolume(dynamic value) {
-              if (value == null) return '-';
-              if (value is num) {
-                return value.toInt().toString();
-              }
-              if (value is String) {
-                // Untuk volume, hapus .000 jika ada
-                if (value.endsWith('.000')) {
-                  return value.replaceAll('.000', '');
-                }
                 final parsed = double.tryParse(value);
                 return parsed?.toInt().toString() ?? value;
               }
@@ -709,15 +697,17 @@ class _DetailPembelianPageState extends State<DetailPembelianPage> {
 
             return DataRow(
               cells: [
-                DataCell(Text(item['kriteria'] ?? '-')),
-                DataCell(Text(formatAngkaTanpaDesimal(item['diameter']))),
-                DataCell(Text(formatAngkaTanpaDesimal(item['panjang']))),
-                DataCell(Text(formatAngkaTanpaDesimal(item['jumlah']))),
-                DataCell(Text(formatVolume(item['volume']))),
+                DataCell(Text(item['faktur_pemb'] ?? '')), // Faktur
+                DataCell(Text(item['kriteria'] ?? '-')), // Grade
+                DataCell(Text(formatAngka(item['diameter']))),
+                DataCell(Text(formatAngka(item['panjang']))),
+                DataCell(Text(formatAngka(item['jumlah']))),
+                DataCell(Text(formatAngka(item['volume']))),
                 DataCell(
                   Text(
-                    // Format tanpa simbol Rp dan tanpa pemisah ribuan
-                    _formatNumber(jumlahHargaValue, decimalDigits: 0),
+                    NumberFormat.decimalPattern(
+                      'id_ID',
+                    ).format(jumlahHargaValue.toInt()),
                   ),
                 ),
               ],
