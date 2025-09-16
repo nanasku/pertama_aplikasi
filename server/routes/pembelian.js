@@ -43,7 +43,34 @@ router.get('/noFakturBaru', (req, res) => {
 });
 
 // GET semua transaksi pembelian
+// GET semua transaksi pembelian - PERBAIKAN
 router.get('/', (req, res) => {
+  const { tanggal, bulan, penjual_id } = req.query;
+
+  let conditions = [];
+  let values = [];
+
+  if (tanggal) {
+    conditions.push('DATE(pb.created_at) = ?');
+    values.push(tanggal); // Format: 'YYYY-MM-DD'
+  }
+
+  if (bulan) {
+    conditions.push('DATE_FORMAT(pb.created_at, "%Y-%m") = ?');
+    values.push(bulan); // Format: 'YYYY-MM'
+  }
+
+  if (penjual_id) {
+    conditions.push('pb.penjual_id = ?');
+    values.push(penjual_id);
+  }
+
+  let whereClause = '';
+  if (conditions.length > 0) {
+    whereClause = 'WHERE ' + conditions.join(' AND ');
+  }
+
+  // PERBAIKAN: Tambahkan whereClause dan values ke query
   const query = `
     SELECT 
       pb.*, 
@@ -52,10 +79,14 @@ router.get('/', (req, res) => {
     FROM pembelian pb
     LEFT JOIN penjual pl ON pb.penjual_id = pl.id
     LEFT JOIN harga_beli h ON pb.product_id = h.id
+    ${whereClause}
     ORDER BY pb.created_at DESC
   `;
 
-  db.query(query, (err, results) => {
+  console.log('Executing query:', query); // Debugging
+  console.log('With values:', values); // Debugging
+
+  db.query(query, values, (err, results) => { // PERBAIKAN: Tambahkan values
     if (err) {
       console.error('Error fetching pembelian:', err);
       return res.status(500).json({ error: 'Database error' });
@@ -65,7 +96,7 @@ router.get('/', (req, res) => {
   });
 });
 
-// GET pembelian by ID (beserta detail)
+// GET pembelian by ID (beserta detail) - PERBAIKAN
 router.get('/:id', (req, res) => {
   const { id } = req.params;
 
@@ -80,10 +111,6 @@ router.get('/:id', (req, res) => {
     WHERE pb.id = ?
   `;
 
-  const queryDetail = `
-    SELECT * FROM pembelian_detail WHERE faktur_pemb = ?
-  `;
-
   db.query(queryPembelian, [id], (err, resultsPembelian) => {
     if (err) {
       console.error('Error fetching pembelian:', err);
@@ -95,8 +122,13 @@ router.get('/:id', (req, res) => {
     }
 
     const pembelian = resultsPembelian[0];
+    const faktur_pemb = pembelian.faktur_pemb; // Ambil faktur_pemb dari hasil query
 
-    db.query(queryDetail, [id], (err, detailResults) => {
+    const queryDetail = `
+      SELECT * FROM pembelian_detail WHERE faktur_pemb = ?
+    `;
+
+    db.query(queryDetail, [faktur_pemb], (err, detailResults) => {
       if (err) {
         console.error('Error fetching detail:', err);
         return res.status(500).json({ error: 'Database error' });

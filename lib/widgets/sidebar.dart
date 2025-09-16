@@ -92,9 +92,9 @@ class _SidebarState extends State<Sidebar> {
             initiallyExpanded: _expandedIndex == 1,
             onExpansionChanged: (expanded) => _handleExpansion(1, expanded),
             children: [
-              _buildSubMenuTile(context, 'Laporan Pembelian', 9),
-              _buildSubMenuTile(context, 'Laporan Penjualan', 10),
-              _buildSubMenuTile(context, 'Laporan Laba Rugi', 11),
+              _buildSubMenuTile(context, 'Laporan Pembelian', 7),
+              _buildSubMenuTile(context, 'Laporan Penjualan', 8),
+              _buildSubMenuTile(context, 'Laporan Laba Rugi', 9),
             ],
           ),
 
@@ -104,13 +104,13 @@ class _SidebarState extends State<Sidebar> {
             initiallyExpanded: _expandedIndex == 2,
             onExpansionChanged: (expanded) => _handleExpansion(2, expanded),
             children: [
-              _buildSubMenuTile(context, 'Profil Pengguna', 12),
-              _buildSubMenuTile(context, 'Preferensi', 13),
-              _buildSubMenuTile(context, 'Keamanan', 14),
+              _buildSubMenuTile(context, 'Profil Pengguna', 10),
+              _buildSubMenuTile(context, 'Preferensi', 11),
+              _buildSubMenuTile(context, 'Keamanan', 12),
             ],
           ),
 
-          _buildListTile(context, Icons.help, 'Bantuan', 8),
+          _buildListTile(context, Icons.help, 'Bantuan', 13),
         ],
       ),
     );

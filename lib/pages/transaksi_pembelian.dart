@@ -175,7 +175,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
   Future<void> getNoFakturBaru() async {
     try {
       final response = await http.get(
-        Uri.parse("http://localhost:3000/api/pembelian/noFakturBaru"),
+        Uri.parse('${dotenv.env['API_BASE_URL']}/pembelian/noFakturBaru'),
       );
 
       if (response.statusCode == 200) {
