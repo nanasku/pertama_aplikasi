@@ -61,12 +61,19 @@ router.get('/', (req, res) => {
   });
 });
 
-// GET penjualan by ID (beserta detail)
+// GET penjualan by ID (beserta detail) - PERBAIKAN
 router.get('/:id', (req, res) => {
   const { id } = req.params;
 
   const queryPenjualan = `
-    SELECT * FROM penjualan WHERE id = ?
+    SELECT 
+      pj.*, 
+      pl.nama AS nama_pembeli, 
+      h.nama_kayu AS nama_barang
+    FROM penjualan pj
+    LEFT JOIN pembeli pl ON pj.pembeli_id = pl.id
+    LEFT JOIN harga_jual h ON pj.product_id = h.id
+    WHERE pj.id = ?
   `;
 
   db.query(queryPenjualan, [id], (err, resultsPenjualan) => {
@@ -80,10 +87,13 @@ router.get('/:id', (req, res) => {
     }
 
     const penjualan = resultsPenjualan[0];
+    const faktur_penj = penjualan.faktur_penj; // Ambil faktur_pemb dari hasil query
 
-    const queryDetail = `SELECT * FROM penjualan_detail WHERE faktur_penj = ?`;
+    const queryDetail = `
+      SELECT * FROM penjualan_detail WHERE faktur_penj = ?
+    `;
 
-    db.query(queryDetail, [penjualan.faktur_penj], (err, detailResults) => {
+    db.query(queryDetail, [faktur_penj], (err, detailResults) => {
       if (err) {
         console.error('Error fetching detail:', err);
         return res.status(500).json({ error: 'Database error' });

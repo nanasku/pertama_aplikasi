@@ -18,6 +18,31 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
   DateTimeRange? selectedDateRange;
   final DateFormat formatter = DateFormat('dd/MM/yyyy');
 
+  // State untuk filter
+  int _selectedFilterIndex = 0; // 0: Harian, 1: Bulanan, 2: Pembeli
+  DateTime? _selectedDate;
+  DateTime? _selectedMonth;
+  String? _selectedPembeliId;
+  List<Map<String, dynamic>> daftarPembeli = [];
+
+  String _getLaporanTitle() {
+    if (_selectedFilterIndex == 0 && _selectedDate != null) {
+      return 'Laporan Penjualan Harian (${DateFormat("dd/MM/yyyy").format(_selectedDate!)})';
+    } else if (_selectedFilterIndex == 1 && _selectedMonth != null) {
+      return 'Laporan Penjualan Bulan ${DateFormat("MMMM yyyy", "id_ID").format(_selectedMonth!)}';
+    } else if (_selectedFilterIndex == 2 && _selectedPembeliId != null) {
+      final pembeli = daftarPembeli.firstWhere(
+        (p) => p['id'] == _selectedPembeliId,
+        orElse: () => {'nama': '-'},
+      );
+      return 'Laporan Penjualan oleh ${pembeli['nama']}';
+    }
+    return 'Laporan Penjualan';
+  }
+
+  // Controller untuk dropdown bulan
+  final TextEditingController _monthController = TextEditingController();
+
   // Fungsi untuk mengonversi string angka Indonesia ke double
   double _parseIndonesianNumber(String value) {
     if (value == null || value.isEmpty) return 0.0;
@@ -36,8 +61,47 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDaftarPembeli();
       _loadDataPenjualan();
     });
+  }
+
+  String _formatNumber(double value, {int decimalDigits = 0}) {
+    return NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: '',
+      decimalDigits: decimalDigits,
+    ).format(value);
+  }
+
+  // Di _DetailPenjualanPageState, perbaiki _formatCurrency method
+  String _formatCurrency(double value) {
+    // Selalu tampilkan tanpa desimal untuk currency
+    return NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    ).format(value);
+  }
+
+  // Load daftar Pembeli untuk dropdown
+  Future<void> _loadDaftarPembeli() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${dotenv.env['API_BASE_URL']}/pembeli'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          daftarPembeli = data.map<Map<String, dynamic>>((item) {
+            return {'id': item['id'].toString(), 'nama': item['nama'] ?? '-'};
+          }).toList();
+        });
+      }
+    } catch (error) {
+      print('Error loading pembeli: $error');
+    }
   }
 
   Future<void> _loadDataPenjualan() async {
@@ -48,30 +112,48 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
 
     try {
       String url = '${dotenv.env['API_BASE_URL']}/penjualan';
+      Map<String, String> queryParams = {};
 
-      // Tambahkan filter tanggal jika dipilih
-      if (selectedDateRange != null) {
-        final startDate = DateFormat(
+      // Terapkan filter sesuai tab yang aktif
+      if (_selectedFilterIndex == 0 && _selectedDate != null) {
+        // Filter Harian
+        queryParams['filter'] = 'harian';
+        queryParams['tanggal'] = DateFormat(
           'yyyy-MM-dd',
-        ).format(selectedDateRange!.start);
-        final endDate = DateFormat('yyyy-MM-dd').format(selectedDateRange!.end);
-        url += '?start_date=$startDate&end_date=$endDate';
+        ).format(_selectedDate!);
+      } else if (_selectedFilterIndex == 1 && _selectedMonth != null) {
+        // Filter Bulanan
+        queryParams['filter'] = 'bulanan';
+        queryParams['bulan'] = _selectedMonth!.month.toString().padLeft(2, '0');
+        queryParams['tahun'] = _selectedMonth!.year.toString();
+      } else if (_selectedFilterIndex == 2 && _selectedPembeliId != null) {
+        // Filter Pembeli
+        queryParams['filter'] = 'pembeli';
+        queryParams['pembeli_id'] = _selectedPembeliId!;
+      }
+
+      // Tambahkan query string kalau ada filter
+      if (queryParams.isNotEmpty) {
+        final uri = Uri.parse(url).replace(queryParameters: queryParams);
+        url = uri.toString();
       }
 
       final response = await http.get(Uri.parse(url));
+      print('DATA PENJUALAN: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+
         setState(() {
           dataPenjualan = data.map<Map<String, dynamic>>((item) {
-            // Handle konversi nilai total dengan aman
             double totalValue = 0.0;
+
             if (item['total'] is double) {
               totalValue = item['total'];
             } else if (item['total'] is int) {
               totalValue = item['total'].toDouble();
             } else if (item['total'] is String) {
-              totalValue = _parseIndonesianNumber(item['total']);
+              totalValue = _parseIndonesianNumber(item['total'].toString());
             }
 
             return {
@@ -100,32 +182,52 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
     }
   }
 
-  Future<void> _selectDateRange(BuildContext context) async {
-    final DateTimeRange? picked = await showDateRangePicker(
+  // Pilih tanggal untuk filter harian
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
       context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      initialDateRange:
-          selectedDateRange ??
-          DateTimeRange(
-            start: DateTime.now().subtract(const Duration(days: 30)),
-            end: DateTime.now(),
-          ),
     );
 
-    if (picked != null && picked != selectedDateRange) {
+    if (picked != null && picked != _selectedDate) {
       setState(() {
-        selectedDateRange = picked;
+        _selectedDate = picked;
       });
-      _loadDataPenjualan();
+      _loadDataPenjualan(); // Panggil ulang data setelah memilih tanggal
     }
   }
 
-  void _clearDateFilter() {
+  // Pilih bulan untuk filter bulanan
+  Future<void> _selectMonth(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedMonth ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialEntryMode: DatePickerEntryMode.input,
+      initialDatePickerMode: DatePickerMode.year,
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedMonth = DateTime(picked.year, picked.month);
+        _monthController.text = DateFormat('MMMM yyyy').format(_selectedMonth!);
+      });
+      _loadDataPenjualan(); // Panggil ulang data setelah memilih bulan
+    }
+  }
+
+  // Reset semua filter
+  void _resetFilters() {
     setState(() {
-      selectedDateRange = null;
+      _selectedDate = null;
+      _selectedMonth = null;
+      _selectedPembeliId = null;
+      _monthController.clear();
     });
-    _loadDataPenjualan();
+    _loadDataPenjualan(); // Panggil ulang data setelah reset filter
   }
 
   @override
@@ -134,17 +236,6 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
       appBar: AppBar(
         title: const Text('Laporan Penjualan'),
         actions: [
-          if (selectedDateRange != null)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: _clearDateFilter,
-              tooltip: 'Hapus Filter Tanggal',
-            ),
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () => _selectDateRange(context),
-            tooltip: 'Pilih Rentang Tanggal',
-          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadDataPenjualan,
@@ -152,8 +243,172 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: Column(
+        children: [
+          // Tab Menu Filter
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                _buildFilterTab('Harian', 0),
+                _buildFilterTab('Bulanan', 1),
+                _buildFilterTab('Pembeli', 2),
+              ],
+            ),
+          ),
+
+          // Konten Filter berdasarkan pilihan
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: _buildFilterContent(),
+          ),
+
+          // Tombol Reset Filter
+          if (_selectedDate != null ||
+              _selectedMonth != null ||
+              _selectedPembeliId != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: TextButton(
+                onPressed: _resetFilters,
+                child: const Text('Reset Filter'),
+              ),
+            ),
+
+          // Garis pemisah
+          const Divider(height: 1),
+
+          // Data Laporan
+          Expanded(child: _buildBody()),
+        ],
+      ),
     );
+  }
+
+  Widget _buildFilterTab(String title, int index) {
+    final bool isSelected = _selectedFilterIndex == index;
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        child: ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _selectedFilterIndex = index;
+
+              // Reset filter lain saat ganti tab
+              if (index == 0) {
+                _selectedMonth = null;
+                _monthController.clear();
+                _selectedPembeliId = null;
+              } else if (index == 1) {
+                _selectedDate = null;
+                _selectedPembeliId = null;
+              } else if (index == 2) {
+                _selectedDate = null;
+                _selectedMonth = null;
+                _monthController.clear();
+              }
+            });
+
+            // Panggil ulang data dengan filter baru
+            _loadDataPenjualan();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
+            foregroundColor: isSelected ? Colors.white : Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8.0),
+            ),
+          ),
+          child: Text(title),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterContent() {
+    switch (_selectedFilterIndex) {
+      case 0: // Harian
+        return Row(
+          children: [
+            const Text('Tanggal:'),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => _selectDate(context),
+                child: Text(
+                  _selectedDate != null
+                      ? formatter.format(_selectedDate!)
+                      : 'Pilih Tanggal',
+                ),
+              ),
+            ),
+          ],
+        );
+
+      case 1: // Bulanan
+        return Row(
+          children: [
+            const Text('Bulan:'),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextFormField(
+                controller: _monthController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  hintText: 'Pilih Bulan',
+                  border: OutlineInputBorder(),
+                ),
+                onTap: () => _selectMonth(context),
+              ),
+            ),
+          ],
+        );
+
+      case 2: // Pembeli
+        return Row(
+          children: [
+            const Text('Pembeli:'),
+            const SizedBox(width: 8),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: _selectedPembeliId,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                ),
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('Semua Pembeli'),
+                  ),
+                  ...daftarPembeli.map<DropdownMenuItem<String>>((pembeli) {
+                    return DropdownMenuItem<String>(
+                      value: pembeli['id'],
+                      child: Text(pembeli['nama']),
+                    );
+                  }).toList(),
+                ],
+                onChanged: (String? value) {
+                  setState(() {
+                    _selectedPembeliId = value;
+                  });
+                  _loadDataPenjualan(); // Panggil ulang data saat Pembeli berubah
+                },
+              ),
+            ),
+          ],
+        );
+
+      default:
+        return Container();
+    }
   }
 
   Widget _buildBody() {
@@ -171,14 +426,6 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
 
     return Column(
       children: [
-        if (selectedDateRange != null)
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text(
-              'Periode: ${formatter.format(selectedDateRange!.start)} - ${formatter.format(selectedDateRange!.end)}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
         Expanded(
           child: ListView.builder(
             itemCount: dataPenjualan.length,
@@ -199,11 +446,7 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
                     ],
                   ),
                   trailing: Text(
-                    NumberFormat.currency(
-                      locale: 'id_ID',
-                      symbol: 'Rp ',
-                      decimalDigits: 0,
-                    ).format(item['total']),
+                    _formatNumber(item['total']),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   onTap: () {
@@ -220,10 +463,15 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
             },
           ),
         ),
-        Padding(
+        // Total keseluruhan
+        Container(
           padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Text(
-            'Total: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(_calculateTotal())}',
+            'Total: ${_formatNumber(_calculateTotal())}',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
@@ -239,7 +487,7 @@ class _LaporanPenjualanState extends State<LaporanPenjualan> {
   }
 }
 
-// Halaman detail Penjualan
+// Halaman detail Penjualan (tetap sama seperti sebelumnya)
 class DetailPenjualanPage extends StatefulWidget {
   final int idPenjualan;
 
@@ -254,18 +502,31 @@ class _DetailPenjualanPageState extends State<DetailPenjualanPage> {
   bool isLoading = true;
   String errorMessage = '';
 
-  // Fungsi untuk mengonversi string angka Indonesia ke double
   double _parseIndonesianNumber(String value) {
     if (value == null || value.isEmpty) return 0.0;
 
     // Hapus simbol mata uang dan spasi
     String cleanedValue = value.replaceAll('Rp', '').replaceAll(' ', '').trim();
 
-    // Ganti titik (pemisah ribuan) dengan string kosong
-    // Ganti koma (desimal) dengan titik
-    cleanedValue = cleanedValue.replaceAll('.', '').replaceAll(',', '.');
+    // Debug: print nilai yang akan di-parse
+    print("Parsing Indonesian number: '$value' -> '$cleanedValue'");
 
-    return double.tryParse(cleanedValue) ?? 0.0;
+    // Untuk format Indonesia: 1.800.000 → 1800000
+    // Hapus semua titik (pemisah ribuan)
+    if (cleanedValue.contains('.')) {
+      cleanedValue = cleanedValue.replaceAll('.', '');
+    }
+
+    // Ganti koma (desimal) dengan titik jika ada
+    if (cleanedValue.contains(',')) {
+      cleanedValue = cleanedValue.replaceAll(',', '.');
+    }
+
+    // Parse sebagai double
+    final result = double.tryParse(cleanedValue) ?? 0.0;
+    print("Parsed result: $result");
+
+    return result;
   }
 
   @override
@@ -375,6 +636,7 @@ class _DetailPenjualanPageState extends State<DetailPenjualanPage> {
     );
   }
 
+  // Dan perbaiki juga di _buildInfoItem jika diperlukan
   Widget _buildInfoItem(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -406,40 +668,48 @@ class _DetailPenjualanPageState extends State<DetailPenjualanPage> {
         scrollDirection: Axis.horizontal,
         child: DataTable(
           columns: const [
-            DataColumn(label: Text('Grade')),
-            DataColumn(label: Text('Diameter')),
-            DataColumn(label: Text('Panjang')),
-            DataColumn(label: Text('Jumlah')),
-            DataColumn(label: Text('Volume')),
-            DataColumn(label: Text('Total Harga')),
+            DataColumn(label: Text('Faktur')), // Tambah kolom faktur
+            DataColumn(label: Text('Grd')),
+            DataColumn(label: Text('D')),
+            DataColumn(label: Text('P')),
+            DataColumn(label: Text('Jml')),
+            DataColumn(label: Text('Vol')),
+            DataColumn(label: Text('Total')),
           ],
           rows: penjualanDetail!['detail'].map<DataRow>((item) {
-            // Handle konversi nilai jumlah_harga_jual dengan aman
             double jumlahHargaValue = 0.0;
             if (item['jumlah_harga_jual'] is double) {
               jumlahHargaValue = item['jumlah_harga_jual'];
             } else if (item['jumlah_harga_jual'] is int) {
               jumlahHargaValue = item['jumlah_harga_jual'].toDouble();
             } else if (item['jumlah_harga_jual'] is String) {
-              jumlahHargaValue = _parseIndonesianNumber(
-                item['jumlah_harga_jual'],
-              );
+              jumlahHargaValue =
+                  double.tryParse(item['jumlah_harga_jual']) ?? 0.0;
+            }
+
+            String formatAngka(dynamic value) {
+              if (value == null) return '-';
+              if (value is num) return value.toInt().toString();
+              if (value is String) {
+                final parsed = double.tryParse(value);
+                return parsed?.toInt().toString() ?? value;
+              }
+              return value.toString();
             }
 
             return DataRow(
               cells: [
-                DataCell(Text(item['kriteria'] ?? '-')),
-                DataCell(Text(item['diameter'].toString())),
-                DataCell(Text(item['panjang'].toString())),
-                DataCell(Text(item['jumlah'].toString())),
-                DataCell(Text(item['volume'].toString())),
+                DataCell(Text(item['faktur_penj'] ?? '')), // Faktur
+                DataCell(Text(item['kriteria'] ?? '-')), // Grade
+                DataCell(Text(formatAngka(item['diameter']))),
+                DataCell(Text(formatAngka(item['panjang']))),
+                DataCell(Text(formatAngka(item['jumlah']))),
+                DataCell(Text(formatAngka(item['volume']))),
                 DataCell(
                   Text(
-                    NumberFormat.currency(
-                      locale: 'id_ID',
-                      symbol: 'Rp ',
-                      decimalDigits: 0,
-                    ).format(jumlahHargaValue),
+                    NumberFormat.decimalPattern(
+                      'id_ID',
+                    ).format(jumlahHargaValue.toInt()),
                   ),
                 ),
               ],
@@ -448,5 +718,13 @@ class _DetailPenjualanPageState extends State<DetailPenjualanPage> {
         ),
       ),
     ];
+  }
+
+  // Tambahkan fungsi format number sederhana
+  String _formatNumber(double value, {int decimalDigits = 0}) {
+    final formatter = NumberFormat();
+    formatter.minimumFractionDigits = decimalDigits;
+    formatter.maximumFractionDigits = decimalDigits;
+    return formatter.format(value);
   }
 }
