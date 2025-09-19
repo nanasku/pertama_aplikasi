@@ -147,16 +147,17 @@ router.post('/', (req, res) => {
     penjual_id,
     product_id,
     total,
-    items // array dari pembelian_detail
+    items, // array dari pembelian_detail
+    operasionals // array dari pembelian_operasional
   } = req.body;
 
-  // LOG request untuk debugging
   console.log('Received POST /pembelian with data:', {
     no_faktur,
     penjual_id,
     product_id,
     total,
-    items_count: items ? items.length : 0
+    items_count: items ? items.length : 0,
+    operasional_count: operasionals ? operasionals.length : 0
   });
 
   db.beginTransaction((err) => {
@@ -169,11 +170,7 @@ router.post('/', (req, res) => {
       INSERT INTO pembelian (faktur_pemb, penjual_id, product_id, total, created_at)
       VALUES (?, ?, ?, ?, NOW())
     `;
-
     const valuesPembelian = [no_faktur, penjual_id, product_id, total];
-
-    console.log('Executing pembelian query:', queryPembelian);
-    console.log('With values:', valuesPembelian);
 
     db.query(queryPembelian, valuesPembelian, (err, results) => {
       if (err) {
@@ -184,66 +181,133 @@ router.post('/', (req, res) => {
       }
 
       const pembelianId = results.insertId;
-      console.log('Pembelian created with ID:', pembelianId);
 
-      if (items && items.length > 0) {
-        const queryDetail = `
-          INSERT INTO pembelian_detail 
-          (faktur_pemb, nama_kayu, kriteria, diameter, panjang, jumlah, volume, harga_beli, jumlah_harga_beli) 
-          VALUES ?
-        `;
+      // insert detail pembelian
+      const insertDetail = (cb) => {
+        if (items && items.length > 0) {
+          const queryDetail = `
+            INSERT INTO pembelian_detail 
+            (faktur_pemb, nama_kayu, kriteria, diameter, panjang, jumlah, volume, harga_beli, jumlah_harga_beli) 
+            VALUES ?
+          `;
+          const valuesDetail = items.map(item => [
+            no_faktur,
+            item.nama_kayu || '',
+            item.kriteria,
+            item.diameter,
+            item.panjang,
+            item.jumlah,
+            item.volume,
+            item.harga_beli,
+            item.jumlah_harga_beli
+          ]);
 
-        const valuesDetail = items.map(item => [
-          no_faktur, // Menggunakan no_faktur bukan pembelianId
-          item.nama_kayu || '',
-          item.kriteria,
-          item.diameter,
-          item.panjang,
-          item.jumlah,
-          item.volume,
-          item.harga_beli,
-          item.jumlah_harga_beli
-        ]);
+          db.query(queryDetail, [valuesDetail], (err) => {
+            if (err) {
+              return cb(err);
+            }
+            cb(null);
+          });
+        } else {
+          cb(null);
+        }
+      };
 
-        console.log('Executing detail query with values:', valuesDetail);
+      // insert operasional
+      const insertOperasional = (cb) => {
+        if (operasionals && operasionals.length > 0) {
+          const queryOps = `
+            INSERT INTO pembelian_operasional (faktur_pemb, jenis, biaya, tipe)
+            VALUES ?
+          `;
+          const valuesOps = operasionals.map(op => [
+            no_faktur,
+            op.jenis || '',
+            op.biaya,
+            op.tipe
+          ]);
 
-        db.query(queryDetail, [valuesDetail], (err) => {
+          db.query(queryOps, [valuesOps], (err) => {
+            if (err) {
+              return cb(err);
+            }
+            cb(null);
+          });
+        } else {
+          cb(null);
+        }
+      };
+
+      // jalankan insert detail & operasional
+      insertDetail((err) => {
+        if (err) {
+          return db.rollback(() => {
+            res.status(500).json({ error: 'Database error - detail insert failed: ' + err.message });
+          });
+        }
+        insertOperasional((err) => {
           if (err) {
-            console.error('Error creating pembelian_detail:', err);
             return db.rollback(() => {
-              res.status(500).json({ error: 'Database error - detail insert failed: ' + err.message });
+              res.status(500).json({ error: 'Database error - operasional insert failed: ' + err.message });
             });
           }
 
           db.commit((err) => {
             if (err) {
-              console.error('Error committing transaction:', err);
               return db.rollback(() => {
                 res.status(500).json({ error: 'Database error - commit failed: ' + err.message });
               });
             }
-
             res.status(201).json({
               message: 'Transaksi pembelian created successfully',
               id: pembelianId
             });
           });
         });
-      } else {
-        db.commit((err) => {
-          if (err) {
-            console.error('Error committing transaction:', err);
-            return db.rollback(() => {
-              res.status(500).json({ error: 'Database error - commit failed: ' + err.message });
-            });
-          }
+      });
+    });
+  });
+});
 
-          res.status(201).json({
-            message: 'Transaksi pembelian created successfully',
-            id: pembelianId
-          });
-        });
-      }
+//query ambil data pembelian_operasional
+router.get('/:id', (req, res) => {
+  const { id } = req.params;
+
+  const queryPembelian = `
+    SELECT 
+      pb.*, 
+      pl.nama AS nama_penjual, 
+      h.nama_kayu AS nama_barang
+    FROM pembelian pb
+    LEFT JOIN penjual pl ON pb.penjual_id = pl.id
+    LEFT JOIN harga_beli h ON pb.product_id = h.id
+    WHERE pb.id = ?
+  `;
+
+  db.query(queryPembelian, [id], (err, resultsPembelian) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+
+    if (resultsPembelian.length === 0) {
+      return res.status(404).json({ error: 'Transaksi pembelian not found' });
+    }
+
+    const pembelian = resultsPembelian[0];
+    const faktur_pemb = pembelian.faktur_pemb;
+
+    const queryDetail = `SELECT * FROM pembelian_detail WHERE faktur_pemb = ?`;
+    const queryOperasional = `SELECT * FROM pembelian_operasional WHERE faktur_pemb = ?`;
+
+    db.query(queryDetail, [faktur_pemb], (err, detailResults) => {
+      if (err) return res.status(500).json({ error: 'Database error - detail' });
+
+      pembelian.detail = detailResults;
+
+      db.query(queryOperasional, [faktur_pemb], (err, opsResults) => {
+        if (err) return res.status(500).json({ error: 'Database error - operasional' });
+
+        pembelian.operasionals = opsResults;
+        res.json(pembelian);
+      });
     });
   });
 });

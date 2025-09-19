@@ -9,13 +9,14 @@ import 'pages/pembeli.dart';
 import 'pages/penjual.dart';
 import 'pages/laporan_pembelian.dart';
 import 'pages/laporan_penjualan.dart';
+import 'pages/laporan_labarugi.dart';
 // import 'pages/pengaturan.dart';
 // import 'pages/bantuan.dart';
 
 import 'widgets/sidebar.dart';
 
 Future<void> main() async {
-  await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: "assets/.env");
   runApp(MyApp());
 }
 
@@ -56,6 +57,7 @@ class _MainLayoutState extends State<MainLayout> {
     PenjualPage(), // 6: Penjual
     LaporanPembelian(), // 7: Laporan Pembelian
     LaporanPenjualan(), // 8: Laporan Penjualan
+    LaporanLabaRugiPage(),
     // Placeholder(), // 9: Laporan Laba Rugi (belum dibuat)
     // PengaturanPage(), // 10: Pengaturan
     // BantuanPage(), // 11: Bantuan
