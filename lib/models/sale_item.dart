@@ -47,3 +47,27 @@ class SaleItem {
     );
   }
 }
+
+class StokData {
+  final String kriteria;
+  final String namaKayu;
+  final int diameter;
+  final int panjang;
+  final int stokPembelian;
+  final int stokPenjualan;
+  final int stokRusak;
+  final int stokBuku;
+
+  StokData({
+    required this.kriteria,
+    required this.namaKayu,
+    required this.diameter,
+    required this.panjang,
+    required this.stokPembelian,
+    required this.stokPenjualan,
+    required this.stokRusak,
+    required this.stokBuku,
+  });
+
+  int get stokAkhir => stokPembelian - (stokPenjualan + stokRusak);
+}

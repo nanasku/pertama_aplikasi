@@ -10,6 +10,7 @@ import 'pages/penjual.dart';
 import 'pages/laporan_pembelian.dart';
 import 'pages/laporan_penjualan.dart';
 import 'pages/laporan_labarugi.dart';
+import 'pages/laporan_stok.dart';
 // import 'pages/pengaturan.dart';
 // import 'pages/bantuan.dart';
 
@@ -58,6 +59,7 @@ class _MainLayoutState extends State<MainLayout> {
     LaporanPembelian(), // 7: Laporan Pembelian
     LaporanPenjualan(), // 8: Laporan Penjualan
     LaporanLabaRugiPage(),
+    LaporanStokPage(),
     // Placeholder(), // 9: Laporan Laba Rugi (belum dibuat)
     // PengaturanPage(), // 10: Pengaturan
     // BantuanPage(), // 11: Bantuan
@@ -143,8 +145,10 @@ class _MainLayoutState extends State<MainLayout> {
       case 9:
         return 'Laporan Laba Rugi';
       case 10:
-        return 'Pengaturan';
+        return 'Laporan Stok';
       case 11:
+        return 'Pengaturan';
+      case 12:
         return 'Bantuan';
       default:
         return 'Aplikasi Kayu';

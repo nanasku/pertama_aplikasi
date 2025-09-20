@@ -24,6 +24,8 @@ dependencies:
   esc_pos_utils_plus: 2.0.4
   blue_thermal_printer: ^1.1.5
   whatsapp_unilink: ^2.0.1
+  open_file: ^3.5.10
+  syncfusion_flutter_pdf: ^31.1.20
 
 dev_dependencies:
   flutter_test:

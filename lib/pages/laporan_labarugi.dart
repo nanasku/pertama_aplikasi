@@ -25,15 +25,21 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
   bool isLoading = true;
   String errorMessage = '';
 
-  String mode = 'Harian'; // 'Harian', 'Bulanan', 'Tahunan'
-  DateTime selectedDate = DateTime.now();
+  int _selectedFilterIndex = 0; // 0: Harian, 1: Bulanan, 2: Tahunan
+  DateTime? _selectedDate;
+  DateTime? _selectedMonth;
+  DateTime? _selectedYear;
 
-  final currencyFormatter =
-      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+  final currencyFormatter = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
 
   @override
   void initState() {
     super.initState();
+    _selectedDate = DateTime.now();
     fetchLabaRugi();
   }
 
@@ -44,26 +50,33 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
     });
 
     try {
-      final formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
-      final formattedMonth = DateFormat('yyyy-MM').format(selectedDate);
-      final formattedYear = DateFormat('yyyy').format(selectedDate);
-
       String param;
-        if (mode == 'Harian') {
-          param = '?tanggal=$formattedDate';
-        } else if (mode == 'Bulanan') {
-          param = '?bulan=$formattedMonth';
-        } else {
-          param = '?tahun=${selectedDate.year}';
-        }
 
-      final pembelianRes =
-          await http.get(Uri.parse('${dotenv.env['API_BASE_URL']}/pembelian$param'));
-      final penjualanRes =
-          await http.get(Uri.parse('${dotenv.env['API_BASE_URL']}/penjualan$param'));
+      if (_selectedFilterIndex == 0 && _selectedDate != null) {
+        // Mode Harian
+        final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+        param = '?tanggal=$formattedDate';
+      } else if (_selectedFilterIndex == 1 && _selectedMonth != null) {
+        // Mode Bulanan
+        final formattedMonth = DateFormat('yyyy-MM').format(_selectedMonth!);
+        param = '?bulan=$formattedMonth';
+      } else if (_selectedFilterIndex == 2 && _selectedYear != null) {
+        // Mode Tahunan
+        param = '?tahun=${_selectedYear!.year}';
+      } else {
+        // Default: hari ini
+        final formattedDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        param = '?tanggal=$formattedDate';
+      }
 
-      if (pembelianRes.statusCode == 200 &&
-          penjualanRes.statusCode == 200) {
+      final pembelianRes = await http.get(
+        Uri.parse('${dotenv.env['API_BASE_URL']}/pembelian$param'),
+      );
+      final penjualanRes = await http.get(
+        Uri.parse('${dotenv.env['API_BASE_URL']}/penjualan$param'),
+      );
+
+      if (pembelianRes.statusCode == 200 && penjualanRes.statusCode == 200) {
         final pembelianData = json.decode(pembelianRes.body);
         final penjualanData = json.decode(penjualanRes.body);
 
@@ -103,46 +116,189 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
     }
   }
 
-  void pickDate() async {
+  void _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: selectedDate,
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime(2022),
       lastDate: DateTime.now(),
-      initialDatePickerMode: mode == 'Tahunan'
-          ? DatePickerMode.year
-          : DatePickerMode.day,
     );
 
     if (picked != null) {
       setState(() {
-        selectedDate = picked;
+        _selectedDate = picked;
       });
       fetchLabaRugi();
     }
   }
 
-  void pickMonth() async {
-    final now = DateTime.now();
+  void _pickMonth() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: selectedDate,
+      initialDate: _selectedMonth ?? DateTime.now(),
       firstDate: DateTime(2022),
-      lastDate: now,
+      lastDate: DateTime.now(),
       initialDatePickerMode: DatePickerMode.year,
     );
 
     if (picked != null) {
       setState(() {
-        selectedDate = picked;
+        _selectedMonth = picked;
       });
       fetchLabaRugi();
     }
   }
 
-  BlueThermalPrinter bluetooth = BlueThermalPrinter.instance;
-  
+  void _pickYear() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedYear ?? DateTime.now(),
+      firstDate: DateTime(2022),
+      lastDate: DateTime.now(),
+      initialDatePickerMode: DatePickerMode.year,
+    );
 
+    if (picked != null) {
+      setState(() {
+        _selectedYear = picked;
+      });
+      fetchLabaRugi();
+    }
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _selectedDate = DateTime.now();
+      _selectedMonth = null;
+      _selectedYear = null;
+    });
+    fetchLabaRugi();
+  }
+
+  Widget _buildFilterTab(String title, int index) {
+    final bool isSelected = _selectedFilterIndex == index;
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+        child: ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _selectedFilterIndex = index;
+            });
+            fetchLabaRugi();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
+            foregroundColor: isSelected ? Colors.white : Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8.0),
+            ),
+          ),
+          child: Text(title),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterContent() {
+    if (_selectedFilterIndex == 0) {
+      // Harian
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _pickDate,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  side: BorderSide(color: Colors.grey),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _selectedDate != null
+                        ? DateFormat('dd MMM yyyy').format(_selectedDate!)
+                        : 'Pilih Tanggal',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  Icon(Icons.calendar_today, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    } else if (_selectedFilterIndex == 1) {
+      // Bulanan
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _pickMonth,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  side: BorderSide(color: Colors.grey),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _selectedMonth != null
+                        ? DateFormat('MMMM yyyy').format(_selectedMonth!)
+                        : 'Pilih Bulan',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  Icon(Icons.calendar_today, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      // Tahunan
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _pickYear,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  side: BorderSide(color: Colors.grey),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _selectedYear != null
+                        ? DateFormat('yyyy').format(_selectedYear!)
+                        : 'Pilih Tahun',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  Icon(Icons.calendar_today, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+  }
+
+  // Fungsi-fungsi onPrint, onSharePDF, onSendWhatsApp tetap sama...
+  BlueThermalPrinter bluetooth = BlueThermalPrinter.instance;
 
   void onPrint() async {
     try {
@@ -156,28 +312,58 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
           return;
         }
 
-        // Bisa tambahkan UI untuk pilih device di sini
-        bluetooth.connect(devices.first); // Default pilih yang pertama
+        bluetooth.connect(devices.first);
       }
 
       bluetooth.printNewLine();
       bluetooth.printCustom("Laporan Laba Rugi", 2, 1);
       bluetooth.printNewLine();
-      bluetooth.printCustom("Mode: $mode", 1, 0);
-      bluetooth.printCustom("Tanggal: ${DateFormat('yyyy-MM-dd').format(selectedDate)}", 1, 0);
+
+      String modeText = "";
+      String dateText = "";
+
+      if (_selectedFilterIndex == 0 && _selectedDate != null) {
+        modeText = "Harian";
+        dateText = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      } else if (_selectedFilterIndex == 1 && _selectedMonth != null) {
+        modeText = "Bulanan";
+        dateText = DateFormat('yyyy-MM').format(_selectedMonth!);
+      } else if (_selectedFilterIndex == 2 && _selectedYear != null) {
+        modeText = "Tahunan";
+        dateText = DateFormat('yyyy').format(_selectedYear!);
+      }
+
+      bluetooth.printCustom("Mode: $modeText", 1, 0);
+      bluetooth.printCustom("Periode: $dateText", 1, 0);
       bluetooth.printNewLine();
-      bluetooth.printCustom("Penjualan: ${currencyFormatter.format(totalPenjualan)}", 1, 0);
-      bluetooth.printCustom("Pembelian: ${currencyFormatter.format(totalPembelian)}", 1, 0);
-      bluetooth.printCustom("Operasional: ${currencyFormatter.format(totalOperasional)}", 1, 0);
+      bluetooth.printCustom(
+        "Penjualan: ${currencyFormatter.format(totalPenjualan)}",
+        1,
+        0,
+      );
+      bluetooth.printCustom(
+        "Pembelian: ${currencyFormatter.format(totalPembelian)}",
+        1,
+        0,
+      );
+      bluetooth.printCustom(
+        "Operasional: ${currencyFormatter.format(totalOperasional)}",
+        1,
+        0,
+      );
       bluetooth.printNewLine();
       final labaBersih = totalPenjualan - totalPembelian - totalOperasional;
-      bluetooth.printCustom("Laba Bersih: ${currencyFormatter.format(labaBersih)}", 2, 1);
+      bluetooth.printCustom(
+        "Laba Bersih: ${currencyFormatter.format(labaBersih)}",
+        2,
+        1,
+      );
       bluetooth.printNewLine();
       bluetooth.printNewLine();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal mencetak: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Gagal mencetak: $e")));
     }
   }
 
@@ -185,6 +371,20 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
     final pdf = pw.Document();
 
     final labaBersih = totalPenjualan - totalPembelian - totalOperasional;
+
+    String modeText = "";
+    String dateText = "";
+
+    if (_selectedFilterIndex == 0 && _selectedDate != null) {
+      modeText = "Harian";
+      dateText = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+    } else if (_selectedFilterIndex == 1 && _selectedMonth != null) {
+      modeText = "Bulanan";
+      dateText = DateFormat('yyyy-MM').format(_selectedMonth!);
+    } else if (_selectedFilterIndex == 2 && _selectedYear != null) {
+      modeText = "Tahunan";
+      dateText = DateFormat('yyyy').format(_selectedYear!);
+    }
 
     pdf.addPage(
       pw.Page(
@@ -194,14 +394,22 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
             children: [
               pw.Text('Laporan Laba Rugi', style: pw.TextStyle(fontSize: 24)),
               pw.SizedBox(height: 8),
-              pw.Text('Mode: $mode'),
-              pw.Text('Tanggal: ${DateFormat('yyyy-MM-dd').format(selectedDate)}'),
+              pw.Text('Mode: $modeText'),
+              pw.Text('Periode: $dateText'),
               pw.Divider(),
               pw.Text('Penjualan: ${currencyFormatter.format(totalPenjualan)}'),
               pw.Text('Pembelian: ${currencyFormatter.format(totalPembelian)}'),
-              pw.Text('Operasional: ${currencyFormatter.format(totalOperasional)}'),
+              pw.Text(
+                'Operasional: ${currencyFormatter.format(totalOperasional)}',
+              ),
               pw.Divider(),
-              pw.Text('Laba Bersih: ${currencyFormatter.format(labaBersih)}', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+              pw.Text(
+                'Laba Bersih: ${currencyFormatter.format(labaBersih)}',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
             ],
           );
         },
@@ -218,21 +426,36 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
   void onSendWhatsApp() async {
     final labaBersih = totalPenjualan - totalPembelian - totalOperasional;
 
-    final message = '''
-  Laporan Laba Rugi ($mode - ${DateFormat('yyyy-MM-dd').format(selectedDate)})
-  Penjualan: ${currencyFormatter.format(totalPenjualan)}
-  Pembelian: ${currencyFormatter.format(totalPembelian)}
-  Operasional: ${currencyFormatter.format(totalOperasional)}
-  Laba Bersih: ${currencyFormatter.format(labaBersih)}
-  ''';
+    String modeText = "";
+    String dateText = "";
+
+    if (_selectedFilterIndex == 0 && _selectedDate != null) {
+      modeText = "Harian";
+      dateText = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+    } else if (_selectedFilterIndex == 1 && _selectedMonth != null) {
+      modeText = "Bulanan";
+      dateText = DateFormat('yyyy-MM').format(_selectedMonth!);
+    } else if (_selectedFilterIndex == 2 && _selectedYear != null) {
+      modeText = "Tahunan";
+      dateText = DateFormat('yyyy').format(_selectedYear!);
+    }
+
+    final message =
+        '''
+Laporan Laba Rugi ($modeText - $dateText)
+Penjualan: ${currencyFormatter.format(totalPenjualan)}
+Pembelian: ${currencyFormatter.format(totalPembelian)}
+Operasional: ${currencyFormatter.format(totalOperasional)}
+Laba Bersih: ${currencyFormatter.format(labaBersih)}
+''';
 
     final url = Uri.encodeFull('https://wa.me/?text=$message');
     if (await canLaunch(url)) {
       await launch(url);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Tidak bisa membuka WhatsApp")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Tidak bisa membuka WhatsApp")));
     }
   }
 
@@ -243,97 +466,93 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Laporan Laba Rugi'),
-        backgroundColor: Colors.teal,
+        //backgroundColor: Colors.teal,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: fetchLabaRugi,
+            tooltip: 'Refresh Data',
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // 🔼 Bagian atas: mode dan tanggal
+          // Tab Menu Filter
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
               children: [
-                ToggleButtons(
-                  isSelected: [mode == 'Harian', mode == 'Bulanan', mode == 'Tahunan'],
-                  onPressed: (index) {
-                    setState(() {
-                      mode = index == 0
-                          ? 'Harian'
-                          : index == 1
-                              ? 'Bulanan'
-                              : 'Tahunan';
-                    });
-                    fetchLabaRugi();
-                  },
-                  children: [
-                    Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Harian')),
-                    Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Bulanan')),
-                    Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Tahunan')),
-                  ],
-                ),
-                SizedBox(height: 10),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: mode == 'Harian' ? pickDate : pickMonth,
-                      icon: Icon(Icons.calendar_today),
-                      label: Text(
-                        mode == 'Harian'
-                            ? DateFormat('dd MMM yyyy').format(selectedDate)
-                            : mode == 'Bulanan'
-                                ? DateFormat('MMMM yyyy').format(selectedDate)
-                                : DateFormat('yyyy').format(selectedDate),
-                      ),
-                    ),
-                  ],
-                ),
+                _buildFilterTab('Harian', 0),
+                _buildFilterTab('Bulanan', 1),
+                _buildFilterTab('Tahunan', 2),
               ],
             ),
           ),
 
-          Divider(),
+          // Konten Filter berdasarkan pilihan
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: _buildFilterContent(),
+          ),
 
-          // 🔽 Bagian tengah: isi laporan
+          // Tombol Reset Filter
+          if (_selectedDate != null ||
+              _selectedMonth != null ||
+              _selectedYear != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: TextButton(
+                onPressed: _resetFilters,
+                child: Text('Reset Filter'),
+              ),
+            ),
+
+          // Garis pemisah
+          Divider(height: 1),
+
+          // Data Laporan
           Expanded(
             child: isLoading
                 ? Center(child: CircularProgressIndicator())
                 : errorMessage.isNotEmpty
-                    ? Center(child: Text(errorMessage))
-                    : Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: ListView(
-                          children: [
-                            LaporanItem(
-                              label: 'Total Penjualan',
-                              value: currencyFormatter.format(totalPenjualan),
-                            ),
-                            Divider(),
-                            LaporanItem(
-                              label: 'Total Pembelian',
-                              value: currencyFormatter.format(totalPembelian),
-                            ),
-                            LaporanItem(
-                              label: 'Biaya Operasional',
-                              value:
-                                  currencyFormatter.format(totalOperasional),
-                            ),
-                            Divider(thickness: 2),
-                            LaporanItem(
-                              label: 'Laba Bersih',
-                              value: currencyFormatter.format(labaBersih),
-                              isBold: true,
-                              valueColor: labaBersih >= 0
-                                  ? Colors.green
-                                  : Colors.red,
-                            ),
-                          ],
+                ? Center(child: Text(errorMessage))
+                : Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ListView(
+                      children: [
+                        LaporanItem(
+                          label: 'Total Penjualan',
+                          value: currencyFormatter.format(totalPenjualan),
                         ),
-                      ),
+                        Divider(),
+                        LaporanItem(
+                          label: 'Total Pembelian',
+                          value: currencyFormatter.format(totalPembelian),
+                        ),
+                        LaporanItem(
+                          label: 'Biaya Operasional',
+                          value: currencyFormatter.format(totalOperasional),
+                        ),
+                        Divider(thickness: 2),
+                        LaporanItem(
+                          label: 'Laba Bersih',
+                          value: currencyFormatter.format(labaBersih),
+                          isBold: true,
+                          valueColor: labaBersih >= 0
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ],
+                    ),
+                  ),
           ),
 
           Divider(),
 
-          // 🔘 Bagian bawah: tombol aksi
+          // Tombol aksi
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
             child: Row(
@@ -382,7 +601,8 @@ class LaporanItem extends StatelessWidget {
         ? TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: valueColor ?? Colors.black)
+            color: valueColor ?? Colors.black,
+          )
         : TextStyle(fontSize: 16);
 
     return Padding(

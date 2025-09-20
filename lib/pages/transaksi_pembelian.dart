@@ -61,6 +61,12 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
   String? selectedPenjualAlamat;
   String? selectedKayuNama;
 
+  // Variabel untuk operasional
+  List<Map<String, dynamic>> operasionals = [];
+  TextEditingController operasionalJenisController = TextEditingController();
+  TextEditingController operasionalBiayaController = TextEditingController();
+  String operasionalTipe = 'tambah'; // 'tambah' atau 'kurang'
+
   @override
   void initState() {
     super.initState();
@@ -499,37 +505,55 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
         (sum, item) => sum + (item['jumlahHarga'] as double),
       );
 
+      // Hitung total operasional
+      double totalOperasional = 0;
+      for (var op in operasionals) {
+        if (op['tipe'] == 'tambah') {
+          totalOperasional += op['biaya'];
+        } else {
+          totalOperasional -= op['biaya'];
+        }
+      }
+
+      double totalAkhir = totalHarga + totalOperasional;
+
       // Siapkan data items dengan format yang sesuai untuk backend
       List<Map<String, dynamic>> formattedItems = data.map((item) {
         return {
-          'nama_kayu': kayu, // Nama kayu dari dropdown
+          'nama_kayu': kayu,
           'kriteria': item['kriteria'] ?? '',
           'diameter': item['diameter'] ?? 0,
           'panjang': item['panjang'] ?? 0,
           'jumlah': item['jumlah'] ?? 0,
           'volume': item['volume'] ?? 0,
-          'harga_beli': item['harga'] ?? 0, // Sesuai field di database
-          'jumlah_harga_beli':
-              item['jumlahHarga'] ?? 0, // Sesuai field di database
+          'harga_beli': item['harga'] ?? 0,
+          'jumlah_harga_beli': item['jumlahHarga'] ?? 0,
         };
+      }).toList();
+
+      // Siapkan data operasional
+      List<Map<String, dynamic>> formattedOperasionals = operasionals.map((op) {
+        return {'jenis': op['jenis'], 'biaya': op['biaya'], 'tipe': op['tipe']};
       }).toList();
 
       print('Mengirim data ke server:');
       print('No Faktur: $noFaktur');
       print('Penjual ID: $selectedPenjualId');
       print('Product ID: $selectedKayuId');
-      print('Total: $totalHarga');
+      print('Total: $totalAkhir');
       print('Items: $formattedItems');
+      print('Operasionals: $formattedOperasionals');
 
       final response = await http.post(
         Uri.parse('${dotenv.env['API_BASE_URL']}/pembelian'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'no_faktur': noFaktur,
-          'penjual_id': selectedPenjualId, // Sesuai dengan field di backend
-          'product_id': selectedKayuId, // Sesuai dengan field di backend
-          'total': totalHarga,
+          'penjual_id': selectedPenjualId,
+          'product_id': selectedKayuId,
+          'total': totalAkhir,
           'items': formattedItems,
+          'operasionals': formattedOperasionals,
         }),
       );
 
@@ -597,6 +621,22 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
           sum + ((item['volume'] as double) * (item['jumlah'] as int)),
     );
 
+    // Hitung total operasional
+    double totalOperasional = 0;
+    String operasionalDetail = '';
+    for (var op in operasionals) {
+      String tipe = op['tipe'] == 'tambah' ? '+' : '-';
+      operasionalDetail +=
+          '${tipe} ${op['jenis']}: ${formatter.format(op['biaya'])}\n';
+      if (op['tipe'] == 'tambah') {
+        totalOperasional += op['biaya'];
+      } else {
+        totalOperasional -= op['biaya'];
+      }
+    }
+
+    double totalAkhir = totalHarga + totalOperasional;
+
     // Format struk untuk printer POS
     String struk =
         '''
@@ -612,6 +652,9 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     ========================================
     Total Volume: ${totalVolume.toStringAsFixed(2).padLeft(32)} cm³
     Total Harga  : ${formatter.format(totalHarga).padLeft(29)}
+    ${operasionals.isNotEmpty ? '----------------------------------------\nBiaya Operasional:\n$operasionalDetail----------------------------------------' : ''}
+    Total Operasional: ${formatter.format(totalOperasional).padLeft(24)}
+    TOTAL AKHIR  : ${formatter.format(totalAkhir).padLeft(29)}
     ========================================
                   TERIMA KASIH
     ========================================
@@ -1301,7 +1344,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
         ),
       ),
 
-      // Modal Input Data Pembelian - DIPERBAIKI
+      // Modal Input Data Pembelian
       floatingActionButton: modalVisible
           ? Container(
               margin: EdgeInsets.all(20),
@@ -1317,158 +1360,287 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Input Data Pembelian',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 20),
-                  Text('No Faktur: $noFaktur'),
-                  SizedBox(height: 10),
-
-                  // Dropdown untuk memilih Penjual
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: 'Pilih Penjual',
-                      border: OutlineInputBorder(),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Input Data Pembelian',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    initialValue: selectedPenjualId,
-                    items: daftarPenjual.map<DropdownMenuItem<String>>((
-                      penjual,
-                    ) {
-                      final idStr = penjual['id']?.toString() ?? '';
-                      return DropdownMenuItem<String>(
-                        value: idStr,
-                        child: Text(penjual['nama']?.toString() ?? ''),
-                      );
-                    }).toList(),
-                    onChanged: (String? value) {
-                      setState(() {
-                        selectedPenjualId = value;
-                        final selected = daftarPenjual.firstWhere(
-                          (p) => p['id']?.toString() == value,
-                          orElse: () => <String, dynamic>{},
+                    SizedBox(height: 20),
+                    Text('No Faktur: $noFaktur'),
+                    SizedBox(height: 10),
+
+                    // Dropdown untuk memilih Penjual
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: 'Pilih Penjual',
+                        border: OutlineInputBorder(),
+                      ),
+                      initialValue: selectedPenjualId,
+                      items: daftarPenjual.map<DropdownMenuItem<String>>((
+                        penjual,
+                      ) {
+                        final idStr = penjual['id']?.toString() ?? '';
+                        return DropdownMenuItem<String>(
+                          value: idStr,
+                          child: Text(penjual['nama']?.toString() ?? ''),
                         );
-                        if (selected.isNotEmpty) {
-                          selectedPenjualNama = selected['nama']?.toString();
-                          selectedPenjualAlamat = selected['alamat']
-                              ?.toString();
-                          penjual = selectedPenjualNama ?? '';
-                          alamat = selectedPenjualAlamat ?? '';
-                        }
-                      });
-                    },
-                  ),
-
-                  SizedBox(height: 10),
-                  Text('Alamat: ${selectedPenjualAlamat ?? ''}'),
-                  SizedBox(height: 10),
-
-                  // Dropdown untuk memilih Kayu
-                  DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Pilih Jenis Kayu',
-                      border: OutlineInputBorder(),
-                    ),
-                    initialValue:
-                        daftarKayu.any(
-                          (k) => k['id'].toString() == selectedKayuId,
-                        )
-                        ? selectedKayuId
-                        : null,
-                    items: daftarKayu.map<DropdownMenuItem<String>>((kayu) {
-                      final idStr = kayu['id']?.toString() ?? '';
-                      return DropdownMenuItem<String>(
-                        value: idStr,
-                        child: Text(kayu['nama_kayu']?.toString() ?? ''),
-                      );
-                    }).toList(),
-                    onChanged: (String? value) {
-                      setState(() {
-                        selectedKayuId = value;
-                        final selected = daftarKayu.firstWhere(
-                          (k) => k['id']?.toString() == value,
-                          orElse: () => <String, dynamic>{},
-                        );
-
-                        if (selected.isNotEmpty) {
-                          selectedKayuNama = selected['nama_kayu']?.toString();
-                          kayu = selectedKayuNama ?? '';
-
-                          if (selected['prices'] is Map) {
-                            final pricesMap = Map<String, dynamic>.from(
-                              selected['prices'],
-                            );
-                            harga = pricesMap.map(
-                              (k, v) => MapEntry(k.toString(), v.toString()),
-                            );
-                          } else {
-                            // PERBAIKAN: Gunakan nilai default jika prices tidak valid
-                            harga = {
-                              'Rijek 1': '0',
-                              'Rijek 2': '0',
-                              'Standar': '0',
-                              'Super A': '0',
-                              'Super B': '0',
-                              'Super C': '0',
-                            };
+                      }).toList(),
+                      onChanged: (String? value) {
+                        setState(() {
+                          selectedPenjualId = value;
+                          final selected = daftarPenjual.firstWhere(
+                            (p) => p['id']?.toString() == value,
+                            orElse: () => <String, dynamic>{},
+                          );
+                          if (selected.isNotEmpty) {
+                            selectedPenjualNama = selected['nama']?.toString();
+                            selectedPenjualAlamat = selected['alamat']
+                                ?.toString();
+                            penjual = selectedPenjualNama ?? '';
+                            alamat = selectedPenjualAlamat ?? '';
                           }
+                        });
+                      },
+                    ),
 
-                          // Debug: Print untuk memastikan harga ter-set dengan benar
-                          print('Harga setelah pemilihan kayu: $harga');
+                    SizedBox(height: 10),
+                    Text('Alamat: ${selectedPenjualAlamat ?? ''}'),
+                    SizedBox(height: 10),
+
+                    // Dropdown untuk memilih Kayu
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: 'Pilih Jenis Kayu',
+                        border: OutlineInputBorder(),
+                      ),
+                      initialValue:
+                          daftarKayu.any(
+                            (k) => k['id'].toString() == selectedKayuId,
+                          )
+                          ? selectedKayuId
+                          : null,
+                      items: daftarKayu.map<DropdownMenuItem<String>>((kayu) {
+                        final idStr = kayu['id']?.toString() ?? '';
+                        return DropdownMenuItem<String>(
+                          value: idStr,
+                          child: Text(kayu['nama_kayu']?.toString() ?? ''),
+                        );
+                      }).toList(),
+                      onChanged: (String? value) {
+                        setState(() {
+                          selectedKayuId = value;
+                          final selected = daftarKayu.firstWhere(
+                            (k) => k['id']?.toString() == value,
+                            orElse: () => <String, dynamic>{},
+                          );
+
+                          if (selected.isNotEmpty) {
+                            selectedKayuNama = selected['nama_kayu']
+                                ?.toString();
+                            kayu = selectedKayuNama ?? '';
+
+                            if (selected['prices'] is Map) {
+                              final pricesMap = Map<String, dynamic>.from(
+                                selected['prices'],
+                              );
+                              harga = pricesMap.map(
+                                (k, v) => MapEntry(k.toString(), v.toString()),
+                              );
+                            } else {
+                              // PERBAIKAN: Gunakan nilai default jika prices tidak valid
+                              harga = {
+                                'Rijek 1': '0',
+                                'Rijek 2': '0',
+                                'Standar': '0',
+                                'Super A': '0',
+                                'Super B': '0',
+                                'Super C': '0',
+                              };
+                            }
+
+                            // Debug: Print untuk memastikan harga ter-set dengan benar
+                            print('Harga setelah pemilihan kayu: $harga');
+                          }
+                        });
+                      },
+                    ),
+
+                    // TAMBAHAN: Field Operasional
+                    SizedBox(height: 20),
+                    Text(
+                      'Biaya Operasional:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+
+                    // Daftar operasional yang sudah ditambahkan
+                    ...operasionals.map((op) {
+                      return Card(
+                        margin: EdgeInsets.symmetric(vertical: 5),
+                        child: Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Jenis: ${op['jenis']}'),
+                                    Text(
+                                      'Biaya: ${formatter.format(op['biaya'])}',
+                                    ),
+                                    Text(
+                                      'Tipe: ${op['tipe'] == 'tambah' ? 'Menambah' : 'Mengurangi'}',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    operasionals.removeWhere(
+                                      (item) => item['id'] == op['id'],
+                                    );
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+
+                    // Form untuk menambah operasional baru
+                    SizedBox(height: 10),
+                    TextField(
+                      controller: operasionalJenisController,
+                      decoration: InputDecoration(
+                        labelText: 'Jenis Operasional',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    TextField(
+                      controller: operasionalBiayaController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        labelText: 'Biaya (Rp)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text('Tipe:'),
+                        SizedBox(width: 10),
+                        ChoiceChip(
+                          label: Text('Menambah'),
+                          selected: operasionalTipe == 'tambah',
+                          onSelected: (selected) {
+                            setState(() {
+                              operasionalTipe = selected ? 'tambah' : 'kurang';
+                            });
+                          },
+                        ),
+                        SizedBox(width: 10),
+                        ChoiceChip(
+                          label: Text('Mengurangi'),
+                          selected: operasionalTipe == 'kurang',
+                          onSelected: (selected) {
+                            setState(() {
+                              operasionalTipe = selected ? 'kurang' : 'tambah';
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        final jenis = operasionalJenisController.text.trim();
+                        final biaya =
+                            int.tryParse(operasionalBiayaController.text) ?? 0;
+
+                        if (jenis.isNotEmpty && biaya > 0) {
+                          setState(() {
+                            operasionals.add({
+                              'id': DateTime.now().millisecondsSinceEpoch
+                                  .toString(),
+                              'jenis': jenis,
+                              'biaya': biaya,
+                              'tipe': operasionalTipe,
+                            });
+                            operasionalJenisController.clear();
+                            operasionalBiayaController.clear();
+                          });
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Isi jenis dan biaya dengan benar'),
+                            ),
+                          );
                         }
-                      });
-                    },
-                  ),
+                      },
+                      child: Text('+ Tambah Operasional'),
+                    ),
 
-                  SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            print(
-                              'Modal Simpan ditekan - selectedPenjualId: $selectedPenjualId, selectedKayuId: $selectedKayuId',
-                            );
+                    SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              print(
+                                'Modal Simpan ditekan - selectedPenjualId: $selectedPenjualId, selectedKayuId: $selectedKayuId',
+                              );
 
-                            if (selectedPenjualId != null &&
-                                selectedKayuId != null) {
+                              if (selectedPenjualId != null &&
+                                  selectedKayuId != null) {
+                                setState(() {
+                                  modalVisible = false;
+                                  // JANGAN reset selectedKayuId di sini!
+                                });
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Pilih penjual dan jenis kayu terlebih dahulu',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Text('Simpan'),
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () {
                               setState(() {
                                 modalVisible = false;
                                 // JANGAN reset selectedKayuId di sini!
                               });
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Pilih penjual dan jenis kayu terlebih dahulu',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          child: Text('Simpan'),
+                            },
+                            child: Text('Batal'),
+                          ),
                         ),
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () {
-                            setState(() {
-                              modalVisible = false;
-                              // JANGAN reset selectedKayuId di sini!
-                            });
-                          },
-                          child: Text('Batal'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             )
           : null,
