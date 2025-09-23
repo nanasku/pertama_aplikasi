@@ -42,12 +42,20 @@ router.get('/noFakturBaru', (req, res) => {
   });
 });
 
-// GET semua transaksi penjualan
+// GET semua transaksi penjualan (dengan nama pembeli & kayu)
 router.get('/', (req, res) => {
   const query = `
     SELECT 
-      pj.* 
+      pj.id,
+      pj.faktur_penj,
+      pj.total,
+      pj.created_at,
+      pl.nama AS nama_pembeli,
+      GROUP_CONCAT(DISTINCT pd.nama_kayu ORDER BY pd.nama_kayu SEPARATOR ', ') AS kayu_terjual
     FROM penjualan pj
+    LEFT JOIN pembeli pl ON pj.pembeli_id = pl.id
+    LEFT JOIN penjualan_detail pd ON pj.faktur_penj = pd.faktur_penj
+    GROUP BY pj.id
     ORDER BY pj.created_at DESC
   `;
 
@@ -56,7 +64,6 @@ router.get('/', (req, res) => {
       console.error('Error fetching penjualan:', err);
       return res.status(500).json({ error: 'Database error' });
     }
-
     res.json(results);
   });
 });
@@ -115,7 +122,8 @@ router.post('/', (req, res) => {
     email,
     product_id,
     total,
-    items // array dari penjualan_detail
+    items,
+    operasionals
   } = req.body;
 
   console.log('Received POST /penjualan with data:', {
@@ -126,7 +134,8 @@ router.post('/', (req, res) => {
     email,
     product_id,
     total,
-    items_count: items ? items.length : 0
+    items_count: items ? items.length : 0,
+    operasional_count: operasionals ? operasionals.length : 0
   });
 
   db.beginTransaction((err) => {
@@ -153,30 +162,77 @@ router.post('/', (req, res) => {
 
       const penjualanId = results.insertId;
 
-      if (items && items.length > 0) {
-        const queryDetail = `
-          INSERT INTO penjualan_detail 
-          (faktur_penj, nama_kayu, kriteria, diameter, panjang, jumlah, volume, harga_jual, jumlah_harga_jual) 
-          VALUES ?
-        `;
+      // Define insertDetail function
+      const insertDetail = (callback) => {
+        if (items && items.length > 0) {
+          const queryDetail = `
+            INSERT INTO penjualan_detail 
+            (faktur_penj, nama_kayu, kriteria, diameter, panjang, jumlah, volume, harga_jual, jumlah_harga_jual) 
+            VALUES ?
+          `;
 
-        const valuesDetail = items.map(item => [
-          faktur_penj,
-          item.nama_kayu || '',
-          item.kriteria,
-          item.diameter,
-          item.panjang,
-          item.jumlah,
-          item.volume,
-          item.harga_jual,
-          item.jumlah_harga_jual
-        ]);
+          const valuesDetail = items.map(item => [
+            faktur_penj,
+            item.nama_kayu || '',
+            item.kriteria,
+            item.diameter,
+            item.panjang,
+            item.jumlah,
+            item.volume,
+            item.harga_jual,
+            item.jumlah_harga_jual
+          ]);
 
-        db.query(queryDetail, [valuesDetail], (err) => {
+          db.query(queryDetail, [valuesDetail], (err) => {
+            if (err) {
+              console.error('Error inserting detail:', err);
+              return callback(err);
+            }
+            callback(null);
+          });
+        } else {
+          callback(null);
+        }
+      };
+
+      // Di backend penjualan.js - Pastikan field sesuai
+      const insertOperasional = (callback) => {
+        if (operasionals && operasionals.length > 0) {
+          const queryOps = `
+            INSERT INTO penjualan_operasional (faktur_penj, jenis, biaya, tipe)
+            VALUES ?
+          `;
+          const valuesOps = operasionals.map(op => [
+            faktur_penj,
+            op.jenis || '',
+            op.biaya,
+            op.tipe // Pastikan field 'tipe' ada
+          ]);
+
+          db.query(queryOps, [valuesOps], (err) => {
+            if (err) {
+              console.error('Error inserting operasional:', err);
+              return callback(err);
+            }
+            callback(null);
+          });
+        } else {
+          callback(null);
+        }
+      };
+
+      // Run both insertions in sequence
+      insertDetail((err) => {
+        if (err) {
+          return db.rollback(() => {
+            res.status(500).json({ error: 'Database error - detail insert failed: ' + err.message });
+          });
+        }
+
+        insertOperasional((err) => {
           if (err) {
-            console.error('Error creating penjualan_detail:', err);
             return db.rollback(() => {
-              res.status(500).json({ error: 'Database error - detail insert failed: ' + err.message });
+              res.status(500).json({ error: 'Database error - operasional insert failed: ' + err.message });
             });
           }
 
@@ -194,21 +250,7 @@ router.post('/', (req, res) => {
             });
           });
         });
-      } else {
-        db.commit((err) => {
-          if (err) {
-            console.error('Error committing transaction:', err);
-            return db.rollback(() => {
-              res.status(500).json({ error: 'Database error - commit failed: ' + err.message });
-            });
-          }
-
-          res.status(201).json({
-            message: 'Transaksi penjualan created successfully',
-            id: penjualanId
-          });
-        });
-      }
+      });
     });
   });
 });

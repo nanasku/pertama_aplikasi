@@ -36,6 +36,9 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
     'Kayu Balsa',
   ];
 
+  int _selectedYear = DateTime.now().year;
+  int _selectedMonth = DateTime.now().month;
+
   List<StokData> stokList = [];
   bool isLoading = false;
   bool showStokOpnameModal = false;
@@ -85,7 +88,8 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
 
       // Debug: Print URL yang akan diakses
       final apiUrl =
-          '${dotenv.env['API_BASE_URL']}/stok?nama_kayu=$encodedNamaKayu';
+          '${dotenv.env['API_BASE_URL']}/stok/laporan?tahun=$_selectedYear&bulan=$_selectedMonth&nama_kayu=$encodedNamaKayu';
+
       print('API URL: $apiUrl');
 
       // Ambil data stok dari API
@@ -110,21 +114,17 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
         final List<StokData> loadedData = filteredData
             .map(
               (item) => StokData(
-                kriteria: item['kriteria']?.toString() ?? '',
-                namaKayu: item['nama_kayu']?.toString() ?? '',
-                diameter:
-                    int.tryParse(item['diameter']?.toString() ?? '0') ?? 0,
-                panjang: int.tryParse(item['panjang']?.toString() ?? '0') ?? 0,
+                kriteria: item['kriteria'] ?? '',
+                namaKayu: item['nama_kayu'] ?? '',
+                diameter: int.tryParse(item['diameter'].toString()) ?? 0,
+                panjang: int.tryParse(item['panjang'].toString()) ?? 0,
+                stokAwal: int.tryParse(item['stok_awal'].toString()) ?? 0,
                 stokPembelian:
-                    int.tryParse(item['stok_pembelian']?.toString() ?? '0') ??
-                    0,
+                    int.tryParse(item['stok_pembelian'].toString()) ?? 0,
                 stokPenjualan:
-                    int.tryParse(item['stok_penjualan']?.toString() ?? '0') ??
-                    0,
-                stokRusak: 0, // Sesuaikan jika ada data rusak
-                stokBuku:
-                    int.tryParse(item['stok_buku']?.toString() ?? '0') ??
-                    0, // << Tambah ini
+                    int.tryParse(item['stok_penjualan'].toString()) ?? 0,
+                stokRusak: 0, // nanti kalau ada tabel rusak bisa ditambah
+                stokAkhir: int.tryParse(item['stok_akhir'].toString()) ?? 0,
               ),
             )
             .toList();
@@ -197,7 +197,6 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
     final PdfPage page = document.pages.add();
     final PdfGraphics graphics = page.graphics;
 
-    // Judul
     final PdfFont titleFont = PdfStandardFont(PdfFontFamily.helvetica, 18);
     graphics.drawString(
       'LAPORAN STOK KAYU - $_selectedNamaKayu',
@@ -206,37 +205,9 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
       format: PdfStringFormat(alignment: PdfTextAlignment.center),
     );
 
-    // Kriteria terpilih
-    final selectedKriteria = _selectedKriteria.entries
-        .where((entry) => entry.value)
-        .map((entry) => entry.key)
-        .join(', ');
-
-    final PdfFont subTitleFont = PdfStandardFont(PdfFontFamily.helvetica, 12);
-    graphics.drawString(
-      'Kriteria: $selectedKriteria',
-      subTitleFont,
-      bounds: Rect.fromLTWH(0, 50, page.getClientSize().width, 20),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
-    );
-
-    // Tanggal
-    final PdfFont dateFont = PdfStandardFont(PdfFontFamily.helvetica, 12);
-    final String currentDate = DateFormat(
-      'dd MMMM yyyy',
-    ).format(DateTime.now());
-    graphics.drawString(
-      'Tanggal: $currentDate',
-      dateFont,
-      bounds: Rect.fromLTWH(0, 70, page.getClientSize().width, 20),
-      format: PdfStringFormat(alignment: PdfTextAlignment.center),
-    );
-
-    // Tabel
     final PdfGrid grid = PdfGrid();
     grid.columns.add(count: 7);
 
-    // Header
     final PdfGridRow headerRow = grid.headers.add(1)[0];
     headerRow.cells[0].value = 'Kriteria';
     headerRow.cells[1].value = 'Diameter';
@@ -246,7 +217,6 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
     headerRow.cells[5].value = 'Stok Rusak';
     headerRow.cells[6].value = 'Stok Akhir';
 
-    // Data
     for (final stok in stokList) {
       final PdfGridRow row = grid.rows.add();
       row.cells[0].value = stok.kriteria;
@@ -263,22 +233,20 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
       bounds: Rect.fromLTWH(20, 120, page.getClientSize().width - 40, 0),
     );
 
-    // Simpan file
     final List<int> bytes = await document.save();
     document.dispose();
 
     final Directory directory = await getApplicationDocumentsDirectory();
-    final String path = directory.path;
-    final File file = File(
-      '$path/laporan_stok_${_selectedNamaKayu?.toLowerCase().replaceAll(' ', '_')}.pdf',
-    );
+    final String filePath =
+        '${directory.path}/laporan_stok_${_selectedNamaKayu?.toLowerCase().replaceAll(' ', '_')}.pdf';
+    final File file = File(filePath);
     await file.writeAsBytes(bytes, flush: true);
 
-    // Buka file
-    OpenFile.open(file.path);
+    // 🔔 otomatis buka PDF setelah tersimpan
+    await OpenFile.open(file.path);
   }
 
-  Future<void> _shareReport() async {
+  Future<void> _shareWhatsApp() async {
     final Directory directory = await getApplicationDocumentsDirectory();
     final String path = directory.path;
     final String fileName =
@@ -493,6 +461,50 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
+                    // Pilih Tahun
+                    DropdownButton<int>(
+                      value: _selectedYear,
+                      items: List.generate(5, (index) {
+                        final year = DateTime.now().year - index;
+                        return DropdownMenuItem(
+                          value: year,
+                          child: Text(year.toString()),
+                        );
+                      }),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedYear = value;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 16),
+                    // Pilih Bulan
+                    DropdownButton<int>(
+                      value: _selectedMonth,
+                      items: List.generate(12, (index) {
+                        final month = index + 1;
+                        return DropdownMenuItem(
+                          value: month,
+                          child: Text(
+                            DateFormat.MMMM().format(DateTime(0, month)),
+                          ),
+                        );
+                      }),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedMonth = value;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+
+                Row(
+                  children: [
                     ElevatedButton(
                       onPressed: _loadData,
                       child: Text('Tampilkan Data'),
@@ -570,9 +582,9 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: _shareReport,
+                  onPressed: _shareWhatsApp,
                   icon: const Icon(Icons.share),
-                  label: const Text('Share'),
+                  label: const Text('Share WhatsApp'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
@@ -592,20 +604,21 @@ class StokData {
   final String namaKayu;
   final int diameter;
   final int panjang;
+  final int stokAwal; // 🆕 stok awal
   final int stokPembelian;
   final int stokPenjualan;
   final int stokRusak;
+  final int stokAkhir; // 🆕 stok akhir dari backend
 
   StokData({
     required this.kriteria,
     required this.namaKayu,
     required this.diameter,
     required this.panjang,
+    required this.stokAwal,
     required this.stokPembelian,
     required this.stokPenjualan,
     required this.stokRusak,
-    required int stokBuku,
+    required this.stokAkhir,
   });
-
-  int get stokAkhir => stokPembelian - (stokPenjualan + stokRusak);
 }
