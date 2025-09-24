@@ -587,25 +587,31 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
 
   String formatItem(item) {
     // Baris 1: Identitas barang
-    String kriteria = getShortLabel(item['kriteria']); // e.g., 'R 1'
-    String diameter = 'D${item['diameter']}'; // e.g., 'D10'
-    String panjang = 'P${item['panjang']}'; // e.g., 'P130'
+    String kriteria = getShortLabel(
+      item['kriteria'],
+    ).padRight(3); // e.g., 'R 1'
+    String diameter = 'D${item['diameter']}'.padRight(4); // e.g., 'D10'
+    String panjang = 'P${item['panjang']}'.padRight(5); // e.g., 'P130'
     String jumlah = '@${item['jumlah']}'; // e.g., '@8'
 
-    String line1 =
-        '$kriteria $diameter $panjang $jumlah'; // Tidak perlu padding berlebih
+    String line1 = '$kriteria $diameter $panjang $jumlah';
 
     // Baris 2: Kalkulasi — rata kanan
     String volume = '${item['volume'].toStringAsFixed(0)}cm³';
     String harga = formatter.format(item['harga']);
     String jumlahHarga = formatter.format(item['jumlahHarga']);
+
+    // Misalnya hasil: (23cm³ x 1.500) = 172.500
     String calc = '($volume x $harga) = $jumlahHarga';
 
-    // Asumsikan panjang struk maksimal 42 karakter, sesuaikan jika perlu
-    int totalLineLength = 42;
-    String line2 = calc.padLeft(totalLineLength);
+    // Sesuaikan panjang maksimum baris struk (umumnya 42 karakter untuk printer POS)
+    String line2 = calc.padLeft(42);
 
     return '$line1\n$line2';
+  }
+
+  String formatBaris(String label, String value, {int width = 16}) {
+    return label.padRight(width) + ': ' + value;
   }
 
   // Fungsi untuk mencetak struk (kompatibel dengan Printer POS)
@@ -643,18 +649,17 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     ========================================
               TRANSAKSI PEMBELIAN
     ========================================
-    No Faktur: $noFaktur
-    Tanggal: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}
-    Penjual: $penjual
-    Kayu: $kayu
+    ${formatBaris('No Faktur', noFaktur)}
+    ${formatBaris('Tanggal', DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()))}
+    ${formatBaris('Penjual', penjual)}
+    ${formatBaris('Kayu', kayu)}
     ========================================
     ${data.map((item) => formatItem(item)).join('\n--------------------------------\n')}
     ========================================
-    Total Volume: ${totalVolume.toStringAsFixed(2).padLeft(32)} cm³
-    Total Harga  : ${formatter.format(totalHarga).padLeft(29)}
-    ${operasionals.isNotEmpty ? '----------------------------------------\nBiaya Operasional:\n$operasionalDetail----------------------------------------' : ''}
-    Total Operasional: ${formatter.format(totalOperasional).padLeft(24)}
-    TOTAL AKHIR  : ${formatter.format(totalAkhir).padLeft(29)}
+    Total Volume     : ${totalVolume.toStringAsFixed(2).padLeft(10)} cm³
+    Total Harga      : ${formatter.format(totalHarga).padLeft(10)}
+    Total Operasional: ${formatter.format(totalOperasional).padLeft(10)}
+    TOTAL AKHIR      : ${formatter.format(totalAkhir).padLeft(10)}
     ========================================
                   TERIMA KASIH
     ========================================
