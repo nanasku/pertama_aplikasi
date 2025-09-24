@@ -606,6 +606,10 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
     return '$line1\n$line2';
   }
 
+  String labelFormat(String label, String value, {int width = 10}) {
+    return label.padRight(width) + ': ' + value;
+  }
+
   // Fungsi untuk mencetak struk (kompatibel dengan Printer POS)
   Future<void> _cetakStruk() async {
     // Hitung total
@@ -641,18 +645,18 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
     ========================================
               TRANSAKSI PENJUALAN
     ========================================
-    No Faktur: $noFaktur
-    Tanggal: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}
-    Pembeli: $pembeli
-    Kayu: $kayu
+    ${labelFormat('No Faktur', noFaktur)}
+    ${labelFormat('Tanggal', DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()))}
+    ${labelFormat('Pembeli', pembeli)}
+    ${labelFormat('Kayu', kayu)}
     ========================================
     ${data.map((item) => formatItem(item)).join('\n--------------------------------\n')}
     ========================================
-    Total Volume: ${totalVolume.toStringAsFixed(0).padLeft(32)} cm³
-    Total Harga  : ${formatter.format(totalHarga).padLeft(29)}
+    Total Volume     : ${totalVolume.toStringAsFixed(2).padLeft(16)} cm³
+    Total Harga      : ${formatter.format(totalHarga).padLeft(19)}
     ${operasionals.isNotEmpty ? '----------------------------------------\nBiaya Operasional:\n$operasionalDetail----------------------------------------' : ''}
-    Total Operasional: ${formatter.format(totalOperasional).padLeft(24)}
-    TOTAL AKHIR  : ${formatter.format(totalAkhir).padLeft(29)}
+    Total Operasional: ${formatter.format(totalOperasional).padLeft(19)}
+    TOTAL AKHIR      : ${formatter.format(totalAkhir).padLeft(19)}
     ========================================
                   TERIMA KASIH
     ========================================

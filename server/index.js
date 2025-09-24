@@ -35,6 +35,7 @@ app.use('/api/penjual', penjualRoutes);
 app.use('/api/penjualan', penjualanRoutes);
 app.use('/api/pembelian', pembelianRoutes);
 app.use('/api/stok', stokRoutes);
+
 // Test route
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Server is running!' });

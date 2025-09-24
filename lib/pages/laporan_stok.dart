@@ -19,6 +19,9 @@ class LaporanStokPage extends StatefulWidget {
 
 class _LaporanStokPageState extends State<LaporanStokPage> {
   String? _selectedNamaKayu;
+  final Map<String, TextEditingController> opnameControllers = {};
+  final Map<String, TextEditingController> rusakControllers = {};
+
   final Map<String, bool> _selectedKriteria = {
     'Rijek 1': false,
     'Rijek 2': false,
@@ -263,6 +266,73 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
     ], text: 'Laporan Stok Kayu - $_selectedNamaKayu');
   }
 
+  Future<void> _generateStokOpnamePDF(List<dynamic> data) async {
+    final PdfDocument document = PdfDocument();
+    final PdfPage page = document.pages.add();
+    final PdfGraphics graphics = page.graphics;
+
+    final PdfFont titleFont = PdfStandardFont(PdfFontFamily.helvetica, 18);
+    graphics.drawString(
+      'LAPORAN STOK OPNAME - $_selectedNamaKayu',
+      titleFont,
+      bounds: Rect.fromLTWH(0, 20, page.getClientSize().width, 30),
+      format: PdfStringFormat(alignment: PdfTextAlignment.center),
+    );
+
+    final PdfGrid grid = PdfGrid();
+    grid.columns.add(count: 7);
+
+    final PdfGridRow headerRow = grid.headers.add(1)[0];
+    headerRow.cells[0].value = 'Kriteria';
+    headerRow.cells[1].value = 'Diameter';
+    headerRow.cells[2].value = 'Panjang';
+    headerRow.cells[3].value = 'Stok Buku';
+    headerRow.cells[4].value = 'Opname';
+    headerRow.cells[5].value = 'Rusak';
+    headerRow.cells[6].value = 'Selisih';
+
+    for (var item in data) {
+      final kriteria = item['kriteria'].toString();
+      final diameter = item['diameter'].toString();
+      final panjang = item['panjang'].toString();
+      final stokBuku = int.tryParse(item['stok_buku'].toString()) ?? 0;
+
+      final uniqueKey = '$kriteria-$diameter-$panjang';
+      final opname =
+          int.tryParse(opnameControllers[uniqueKey]?.text ?? '') ?? 0;
+      final rusak = int.tryParse(rusakControllers[uniqueKey]?.text ?? '') ?? 0;
+      final selisih = opname + rusak - stokBuku;
+
+      final row = grid.rows.add();
+      row.cells[0].value = kriteria;
+      row.cells[1].value = diameter;
+      row.cells[2].value = panjang;
+      row.cells[3].value = stokBuku.toString();
+      row.cells[4].value = opname.toString();
+      row.cells[5].value = rusak.toString();
+      row.cells[6].value = selisih.toString();
+    }
+
+    grid.draw(
+      page: page,
+      bounds: Rect.fromLTWH(20, 100, page.getClientSize().width - 40, 0),
+    );
+
+    final List<int> bytes = await document.save();
+    document.dispose();
+
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File(
+      '${dir.path}/stok_opname_${_selectedNamaKayu!.toLowerCase().replaceAll(' ', '_')}.pdf',
+    );
+    await file.writeAsBytes(bytes, flush: true);
+
+    // Share via WhatsApp
+    await Share.shareXFiles([
+      XFile(file.path),
+    ], text: 'Laporan Stok Opname - $_selectedNamaKayu');
+  }
+
   void _showStokOpnameModal() async {
     if (_selectedNamaKayu == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -287,75 +357,138 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
           builder: (BuildContext context) {
             // Buat controller untuk input opname
             final Map<String, TextEditingController> opnameControllers = {};
+            final Map<String, TextEditingController> rusakControllers = {};
 
             return AlertDialog(
               title: Text('Stok Opname - $_selectedNamaKayu'),
               content: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Kriteria')),
-                        DataColumn(label: Text('Stok Buku')),
-                        DataColumn(label: Text('Stok Opname')),
-                        DataColumn(label: Text('Selisih')),
-                      ],
-                      rows: data.map((item) {
-                        final kriteria = item['kriteria'].toString();
-                        final stokBuku =
-                            int.tryParse(item['stok_buku'].toString()) ?? 0;
+                scrollDirection: Axis.vertical,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Column(
+                    children: [
+                      DataTable(
+                        columns: const [
+                          DataColumn(label: Text('Grade')),
+                          DataColumn(label: Text('D')),
+                          DataColumn(label: Text('P')),
+                          DataColumn(label: Text('Buku')),
+                          DataColumn(label: Text('SO')),
+                          DataColumn(label: Text('Rusak')),
+                          DataColumn(label: Text('Selisih')),
+                        ],
+                        rows: data.map((item) {
+                          final kriteria = item['kriteria'].toString();
+                          final diameter = item['diameter'].toString();
+                          final panjang = item['panjang'].toString();
+                          final stokBuku =
+                              int.tryParse(item['stok_buku'].toString()) ?? 0;
 
-                        // buat controller untuk input opname per kriteria
-                        opnameControllers[kriteria] = TextEditingController();
+                          final uniqueKey =
+                              '$kriteria-$diameter-$panjang'; // supaya unik
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(kriteria)),
-                            DataCell(Text(stokBuku.toString())),
-                            DataCell(
-                              SizedBox(
-                                width: 60,
-                                child: TextField(
-                                  controller: opnameControllers[kriteria],
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                    hintText: 'SO',
+                          opnameControllers[uniqueKey] =
+                              TextEditingController();
+                          rusakControllers[uniqueKey] = TextEditingController();
+
+                          return DataRow(
+                            cells: [
+                              DataCell(Text(kriteria)),
+                              DataCell(Text(diameter)),
+                              DataCell(Text(panjang)),
+                              DataCell(Text(stokBuku.toString())),
+                              DataCell(
+                                SizedBox(
+                                  width: 20,
+                                  child: TextField(
+                                    controller: opnameControllers[uniqueKey],
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      hintText: '0',
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            DataCell(
-                              ValueListenableBuilder(
-                                valueListenable: opnameControllers[kriteria]!,
-                                builder: (context, value, _) {
-                                  final opname = int.tryParse(value.text) ?? 0;
-                                  final selisih = opname - stokBuku;
-                                  return Text(selisih.toString());
-                                },
+                              DataCell(
+                                SizedBox(
+                                  width: 20,
+                                  child: TextField(
+                                    controller: rusakControllers[uniqueKey],
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      hintText: '0',
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ],
+                              DataCell(
+                                ValueListenableBuilder(
+                                  valueListenable:
+                                      opnameControllers[uniqueKey]!,
+                                  builder: (context, opnameValue, _) {
+                                    final opname =
+                                        int.tryParse(opnameValue.text) ?? 0;
+                                    final rusak =
+                                        int.tryParse(
+                                          rusakControllers[uniqueKey]?.text ??
+                                              '',
+                                        ) ??
+                                        0;
+                                    final selisih = opname + rusak - stokBuku;
+                                    return Text(selisih.toString());
+                                  },
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+
               actions: [
-                TextButton(
+                ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Batal'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromARGB(255, 209, 188, 1),
+                    foregroundColor: Colors.white,
+                  ),
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    // Simpan semua opname ke backend
                     for (var item in data) {
                       final kriteria = item['kriteria'].toString();
+                      final diameter = item['diameter'].toString();
+                      final panjang = item['panjang'].toString();
                       final stokBuku =
                           int.tryParse(item['stok_buku'].toString()) ?? 0;
+
+                      final uniqueKey = '$kriteria-$diameter-$panjang';
+
                       final opname =
-                          int.tryParse(opnameControllers[kriteria]!.text) ?? 0;
-                      final selisih = opname - stokBuku;
+                          int.tryParse(
+                            opnameControllers[uniqueKey]?.text ?? '',
+                          ) ??
+                          0;
+                      final rusak =
+                          int.tryParse(
+                            rusakControllers[uniqueKey]?.text ?? '',
+                          ) ??
+                          0;
+
+                      if (opname + rusak > stokBuku) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Jumlah SO (${opname}) + Rusak (${rusak}) tidak boleh melebihi Stok Buku (${stokBuku}) untuk $kriteria ($diameter x $panjang)',
+                            ),
+                          ),
+                        );
+                        return; // ❗ Stop proses simpan jika salah satu data tidak valid
+                      }
 
                       final opnameData = {
                         "nama_kayu": item['nama_kayu'],
@@ -363,6 +496,7 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
                         "diameter": item['diameter'],
                         "panjang": item['panjang'],
                         "stok_opname": opname,
+                        "stok_rusak": rusak,
                         "tanggal_opname": DateFormat(
                           "yyyy-MM-dd",
                         ).format(DateTime.now()),
@@ -383,7 +517,22 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
                       ),
                     );
                   },
+
                   child: const Text('Simpan'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    await _generateStokOpnamePDF(data);
+                  },
+                  child: const Text('Share WA'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             );
@@ -528,39 +677,42 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
                 ? const Center(child: Text('Tidak ada data stok'))
                 : SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Kriteria')),
-                        DataColumn(label: Text('Diameter (cm)')),
-                        DataColumn(label: Text('Panjang (cm)')),
-                        DataColumn(label: Text('Stok Pembelian')),
-                        DataColumn(label: Text('Stok Penjualan')),
-                        DataColumn(label: Text('Stok Rusak')),
-                        DataColumn(label: Text('Stok Akhir')),
-                      ],
-                      rows: stokList.map((stok) {
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(stok.kriteria)),
-                            DataCell(Text('${stok.diameter}')),
-                            DataCell(Text('${stok.panjang}')),
-                            DataCell(Text(stok.stokPembelian.toString())),
-                            DataCell(Text(stok.stokPenjualan.toString())),
-                            DataCell(Text(stok.stokRusak.toString())),
-                            DataCell(
-                              Text(
-                                stok.stokAkhir.toString(),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: stok.stokAkhir < 10
-                                      ? Colors.red
-                                      : Colors.green,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columns: const [
+                          DataColumn(label: Text('Grade')),
+                          DataColumn(label: Text('D (cm)')),
+                          DataColumn(label: Text('P (cm)')),
+                          DataColumn(label: Text('Stok Beli')),
+                          DataColumn(label: Text('Stok Jual')),
+                          DataColumn(label: Text('Stok Rusak')),
+                          DataColumn(label: Text('Stok Akhir')),
+                        ],
+                        rows: stokList.map((stok) {
+                          return DataRow(
+                            cells: [
+                              DataCell(Text(stok.kriteria)),
+                              DataCell(Text('${stok.diameter}')),
+                              DataCell(Text('${stok.panjang}')),
+                              DataCell(Text(stok.stokPembelian.toString())),
+                              DataCell(Text(stok.stokPenjualan.toString())),
+                              DataCell(Text(stok.stokRusak.toString())),
+                              DataCell(
+                                Text(
+                                  stok.stokAkhir.toString(),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: stok.stokAkhir < 10
+                                        ? Colors.red
+                                        : Colors.green,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
+                            ],
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
           ),

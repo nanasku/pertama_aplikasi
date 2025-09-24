@@ -50,7 +50,7 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
     });
 
     try {
-      String param;
+      String param = '';
 
       if (_selectedFilterIndex == 0 && _selectedDate != null) {
         // Mode Harian
@@ -69,6 +69,7 @@ class _LaporanLabaRugiPageState extends State<LaporanLabaRugiPage> {
         param = '?tanggal=$formattedDate';
       }
 
+      // Memanggil API untuk mendapatkan data pembelian dan penjualan
       final pembelianRes = await http.get(
         Uri.parse('${dotenv.env['API_BASE_URL']}/pembelian$param'),
       );
@@ -549,10 +550,7 @@ Laba Bersih: ${currencyFormatter.format(labaBersih)}
                     ),
                   ),
           ),
-
           Divider(),
-
-          // Tombol aksi
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
             child: Row(
@@ -560,18 +558,29 @@ Laba Bersih: ${currencyFormatter.format(labaBersih)}
               children: [
                 ElevatedButton.icon(
                   onPressed: onPrint,
-                  icon: Icon(Icons.print),
-                  label: Text('Print'),
+                  icon: Icon(Icons.print, color: Colors.white),
+                  label: Text('Print', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
                 ),
                 ElevatedButton.icon(
                   onPressed: onSharePDF,
-                  icon: Icon(Icons.picture_as_pdf),
-                  label: Text('Share PDF'),
+                  icon: Icon(Icons.picture_as_pdf, color: Colors.white),
+                  label: Text(
+                    'Share PDF',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 ),
                 ElevatedButton.icon(
                   onPressed: onSendWhatsApp,
-                  icon: Icon(Icons.share),
-                  label: Text('WhatsApp'),
+                  icon: Icon(Icons.share, color: Colors.white),
+                  label: Text(
+                    'WhatsApp',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                  ),
                 ),
               ],
             ),

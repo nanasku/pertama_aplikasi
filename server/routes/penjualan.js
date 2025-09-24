@@ -162,70 +162,99 @@ router.post('/', (req, res) => {
 
       const penjualanId = results.insertId;
 
-      // Define insertDetail function
+      // STEP 1: insertDetail
       const insertDetail = (callback) => {
-        if (items && items.length > 0) {
-          const queryDetail = `
-            INSERT INTO penjualan_detail 
-            (faktur_penj, nama_kayu, kriteria, diameter, panjang, jumlah, volume, harga_jual, jumlah_harga_jual) 
-            VALUES ?
-          `;
+        if (!items || items.length === 0) {
+          return callback(null); // skip if no items
+        }
 
-          const valuesDetail = items.map(item => [
+        const queryDetail = `
+          INSERT INTO penjualan_detail 
+          (faktur_penj, nama_kayu, kriteria, diameter, panjang, jumlah, volume, harga_jual, jumlah_harga_jual) 
+          VALUES ?
+        `;
+
+        const valuesDetail = items.map(item => {
+          const volume = (item.diameter * item.diameter * item.panjang * item.jumlah * 0.7854) / 1000000000;
+          const jumlah_harga_jual = volume * item.harga_jual;
+          return [
             faktur_penj,
             item.nama_kayu || '',
             item.kriteria,
             item.diameter,
             item.panjang,
             item.jumlah,
-            item.volume,
+            volume,
             item.harga_jual,
-            item.jumlah_harga_jual
-          ]);
+            jumlah_harga_jual
+          ];
+        });
 
-          db.query(queryDetail, [valuesDetail], (err) => {
-            if (err) {
-              console.error('Error inserting detail:', err);
-              return callback(err);
-            }
-            callback(null);
-          });
-        } else {
-          callback(null);
-        }
-      };
+        db.query(queryDetail, [valuesDetail], (err) => {
+          if (err) return callback(err);
 
-      // Di backend penjualan.js - Pastikan field sesuai
-      const insertOperasional = (callback) => {
-        if (operasionals && operasionals.length > 0) {
-          const queryOps = `
-            INSERT INTO penjualan_operasional (faktur_penj, jenis, biaya, tipe)
-            VALUES ?
+          // STEP 1.1: Update stok untuk setiap item
+          const updateStokQuery = `
+            UPDATE stok
+            SET stok_buku = stok_buku - ?
+            WHERE nama_kayu = ? AND kriteria = ? AND diameter = ? AND panjang = ?
           `;
-          const valuesOps = operasionals.map(op => [
-            faktur_penj,
-            op.jenis || '',
-            op.biaya,
-            op.tipe // Pastikan field 'tipe' ada
-          ]);
 
-          db.query(queryOps, [valuesOps], (err) => {
-            if (err) {
-              console.error('Error inserting operasional:', err);
-              return callback(err);
-            }
-            callback(null);
+          let errorOccurred = null;
+          let completed = 0;
+
+          items.forEach((item) => {
+            db.query(updateStokQuery, [
+              item.jumlah,
+              item.nama_kayu,
+              item.kriteria,
+              item.diameter,
+              item.panjang
+            ], (err) => {
+              if (err) {
+                console.error('Error updating stok:', err);
+                errorOccurred = err;
+              }
+              completed++;
+              if (completed === items.length) {
+                callback(errorOccurred);
+              }
+            });
           });
-        } else {
-          callback(null);
-        }
+        });
       };
 
-      // Run both insertions in sequence
+      // STEP 2: insertOperasional
+      const insertOperasional = (callback) => {
+        if (!operasionals || operasionals.length === 0) {
+          return callback(null); // skip if no operasionals
+        }
+
+        const queryOps = `
+          INSERT INTO penjualan_operasional (faktur_penj, jenis, biaya, tipe)
+          VALUES ?
+        `;
+        const valuesOps = operasionals.map(op => [
+          faktur_penj,
+          op.jenis || '',
+          op.biaya,
+          op.tipe
+        ]);
+
+        db.query(queryOps, [valuesOps], (err) => {
+          if (err) {
+            console.error('Error inserting operasional:', err);
+            return callback(err);
+          }
+          callback(null);
+        });
+      };
+
+      // Jalankan insertDetail dan insertOperasional
       insertDetail((err) => {
         if (err) {
           return db.rollback(() => {
-            res.status(500).json({ error: 'Database error - detail insert failed: ' + err.message });
+            res.status(500).json({ error: 'Database error - detail insert/update stok failed: ' + err.message });
           });
         }
 
@@ -254,6 +283,7 @@ router.post('/', (req, res) => {
     });
   });
 });
+
 
 // PUT update penjualan (hanya data utama, tidak termasuk detail)
 router.put('/:id', (req, res) => {

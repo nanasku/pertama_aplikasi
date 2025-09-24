@@ -99,36 +99,96 @@ router.get('/:id', (req, res) => {
   });
 });
 
-// POST: input stok opname
+// POST: Simpan hasil stok opname
 router.post('/opname', (req, res) => {
-  const { nama_kayu, kriteria, diameter, panjang, stok_opname, tanggal_opname, keterangan } = req.body;
+  const {
+    nama_kayu,
+    kriteria,
+    diameter,
+    panjang,
+    stok_opname,
+    stok_rusak = 0,
+    tanggal_opname,
+    keterangan
+  } = req.body;
 
-  if (!nama_kayu || !kriteria || !diameter || !panjang || stok_opname === undefined || !tanggal_opname) {
+  if (
+    !nama_kayu || !kriteria || !diameter || !panjang ||
+    stok_opname === undefined || !tanggal_opname
+  ) {
     return res.status(400).json({ error: 'Data opname tidak lengkap' });
   }
 
-  // Ambil stok buku dari view stok
-  const selectQuery = `SELECT stok_buku FROM stok WHERE nama_kayu=? AND kriteria=? AND diameter=? AND panjang=? LIMIT 1`;
-  db.query(selectQuery, [nama_kayu, kriteria, diameter, panjang], (err, results) => {
-    if (err) return res.status(500).json({ error: 'Gagal ambil stok' });
-    if (results.length === 0) return res.status(404).json({ error: 'Data stok tidak ditemukan' });
+  const selectStokQuery = `
+    SELECT stok_buku FROM stok
+    WHERE nama_kayu = ? AND kriteria = ? AND diameter = ? AND panjang = ?
+    LIMIT 1
+  `;
+
+  db.query(selectStokQuery, [nama_kayu, kriteria, diameter, panjang], (err, results) => {
+    if (err) {
+      console.error('Gagal mengambil stok:', err);
+      return res.status(500).json({ error: 'Gagal mengambil data stok' });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'Data stok tidak ditemukan untuk opname ini' });
+    }
 
     const stok_buku = results[0].stok_buku;
+    const selisih = stok_opname - stok_buku;
 
-    const insertQuery = `
-      INSERT INTO stok_opname 
-        (nama_kayu, kriteria, diameter, panjang, stok_buku, stok_opname, tanggal_opname, keterangan) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    // ✅ 1. Simpan ke tabel stok_opname
+    const insertOpnameQuery = `
+      INSERT INTO stok_opname (
+        nama_kayu, kriteria, diameter, panjang, stok_buku,
+        stok_opname, stok_rusak, selisih, tanggal_opname, keterangan
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    db.query(insertQuery, [nama_kayu, kriteria, diameter, panjang, stok_buku, stok_opname, tanggal_opname, keterangan], (err2, result) => {
-      if (err2) {
-        console.error('Gagal simpan opname:', err2);
-        return res.status(500).json({ error: 'Gagal simpan opname' });
+
+    db.query(
+      insertOpnameQuery,
+      [
+        nama_kayu, kriteria, diameter, panjang, stok_buku,
+        stok_opname, stok_rusak, selisih, tanggal_opname, keterangan
+      ],
+      (insertErr, result) => {
+        if (insertErr) {
+          console.error('Gagal menyimpan opname:', insertErr);
+          return res.status(500).json({ error: 'Gagal menyimpan data opname' });
+        }
+
+        // ✅ 2. Kurangi stok_buku dari tabel stok jika ada rusak
+        if (stok_rusak > 0) {
+          const updateStokQuery = `
+            UPDATE stok
+            SET stok_buku = GREATEST(stok_buku - ?, 0)
+            WHERE nama_kayu = ? AND kriteria = ? AND diameter = ? AND panjang = ?
+          `;
+
+          db.query(
+            updateStokQuery,
+            [stok_rusak, nama_kayu, kriteria, diameter, panjang],
+            (updateErr, updateResult) => {
+              if (updateErr) {
+                console.error('Gagal mengurangi stok:', updateErr);
+                return res.status(500).json({ error: 'Gagal mengurangi stok akibat rusak' });
+              }
+
+              return res.status(201).json({
+                message: 'Opname berhasil disimpan dan stok dikurangi',
+                id: result.insertId
+              });
+            }
+          );
+        } else {
+          return res.status(201).json({ message: 'Opname berhasil disimpan', id: result.insertId });
+        }
       }
-      res.status(201).json({ message: 'Opname berhasil disimpan', id: result.insertId });
-    });
+    );
   });
 });
+
 
 // PUT: Update data stok
 router.put('/:id', (req, res) => {

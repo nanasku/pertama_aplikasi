@@ -614,6 +614,10 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     return label.padRight(width) + ': ' + value;
   }
 
+  String labelFormat(String label, String value, {int width = 10}) {
+    return label.padRight(width) + ': ' + value;
+  }
+
   // Fungsi untuk mencetak struk (kompatibel dengan Printer POS)
   Future<void> _cetakStruk() async {
     // Hitung total
@@ -649,22 +653,22 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     ========================================
               TRANSAKSI PEMBELIAN
     ========================================
-    ${formatBaris('No Faktur', noFaktur)}
-    ${formatBaris('Tanggal', DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()))}
-    ${formatBaris('Penjual', penjual)}
-    ${formatBaris('Kayu', kayu)}
+    ${labelFormat('No Faktur', noFaktur)}
+    ${labelFormat('Tanggal', DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()))}
+    ${labelFormat('Penjual', penjual)}
+    ${labelFormat('Kayu', kayu)}
     ========================================
     ${data.map((item) => formatItem(item)).join('\n--------------------------------\n')}
     ========================================
-    Total Volume     : ${totalVolume.toStringAsFixed(2).padLeft(10)} cm³
-    Total Harga      : ${formatter.format(totalHarga).padLeft(10)}
-    Total Operasional: ${formatter.format(totalOperasional).padLeft(10)}
-    TOTAL AKHIR      : ${formatter.format(totalAkhir).padLeft(10)}
+    Total Volume     : ${totalVolume.toStringAsFixed(2).padLeft(16)} cm³
+    Total Harga      : ${formatter.format(totalHarga).padLeft(19)}
+    ${operasionals.isNotEmpty ? '----------------------------------------\nBiaya Operasional:\n$operasionalDetail----------------------------------------' : ''}
+    Total Operasional: ${formatter.format(totalOperasional).padLeft(19)}
+    TOTAL AKHIR      : ${formatter.format(totalAkhir).padLeft(19)}
     ========================================
                   TERIMA KASIH
     ========================================
     ''';
-
     // Untuk mencetak ke printer POS, Anda perlu menggunakan package khusus
     // seperti esc_pos_printer atau flutter_blue_plus untuk Bluetooth printers
     print(struk); // Ini hanya contoh di console
