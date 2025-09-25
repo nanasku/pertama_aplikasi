@@ -16,55 +16,62 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Get user profile - PERBAIKI SYNTAX INI
-router.get('/profile/:id', async (req, res) => {
-    try {
-        console.log('Fetching user profile for ID:', req.params.id); // Debug log
-        const [rows] = await db.execute('SELECT id, username, email, company_name, profile_image FROM users WHERE id = ?', [req.params.id]);
-        
-        if (rows.length === 0) {
-            return res.status(404).json({ message: 'User tidak ditemukan' });
-        }
-        
-        console.log('User data:', rows[0]); // Debug log
-        res.json(rows[0]);
-    } catch (error) {
-        console.error('Error fetching user:', error); // Debug log
-        res.status(500).json({ message: 'Server error', error: error.message });
+// Get user profile
+router.get('/profile/:id', (req, res) => {
+  console.log('Fetching user profile for ID:', req.params.id);
+
+  db.execute(
+    'SELECT id, username, email, company_name, profile_image FROM users WHERE id = ?',
+    [req.params.id],
+    (err, results) => {
+      if (err) {
+        console.error('Error fetching user:', err);
+        return res.status(500).json({ message: 'Server error', error: err.message });
+      }
+
+      if (results.length === 0) {
+        return res.status(404).json({ message: 'User tidak ditemukan' });
+      }
+
+      console.log('User data:', results[0]);
+      res.json(results[0]);
     }
+  );
 });
 
-// Update user profile - PERBAIKI SYNTAX INI
-router.put('/profile/:id', upload.single('profile_image'), async (req, res) => {
-    try {
-        const { username, email, company_name } = req.body;
-        let profileImage = null;
+// Update user profile
+router.put('/profile/:id', upload.single('profile_image'), (req, res) => {
+  const { username, email, company_name } = req.body;
+  let profileImage = null;
 
-        if (req.file) {
-            profileImage = req.file.filename;
-        }
+  if (req.file) {
+    profileImage = req.file.filename;
+  }
 
-        let query = 'UPDATE users SET username = ?, email = ?, company_name = ?';
-        let params = [username, email, company_name];
+  let query = 'UPDATE users SET username = ?, email = ?, company_name = ?';
+  let params = [username, email, company_name];
 
-        if (profileImage) {
-            query += ', profile_image = ?';
-            params.push(profileImage);
-        }
+  if (profileImage) {
+    query += ', profile_image = ?';
+    params.push(profileImage);
+  }
 
-        query += ' WHERE id = ?';
-        params.push(req.params.id);
+  query += ' WHERE id = ?';
+  params.push(req.params.id);
 
-        const [result] = await db.execute(query, params);
-        
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'User tidak ditemukan' });
-        }
-        
-        res.json({ message: 'Profil berhasil diperbarui' });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+  db.execute(query, params, (err, result) => {
+    if (err) {
+      console.error('Error updating user:', err);
+      return res.status(500).json({ message: 'Server error', error: err.message });
     }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
+
+    res.json({ message: 'Profil berhasil diperbarui' });
+  });
 });
+
 
 module.exports = router;

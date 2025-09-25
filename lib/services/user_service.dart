@@ -4,7 +4,7 @@ import '../models/user_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class UserService {
-  static final String baseUrl = '${dotenv.env['API_BASE_URL']}/api/users';
+  static final String baseUrl = '${dotenv.env['API_BASE_URL']}/users';
 
   // Get user profile dengan error handling lebih baik
   static Future<User> getUserProfile(int userId) async {
