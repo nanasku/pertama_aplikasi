@@ -42,28 +42,55 @@ router.get('/noFakturBaru', (req, res) => {
   });
 });
 
-// GET semua transaksi penjualan (dengan nama pembeli & kayu)
+// GET semua transaksi penjualan
 router.get('/', (req, res) => {
+  const { tanggal, bulan, pembeli_id } = req.query;
+
+  let conditions = [];
+  let values = [];
+
+  if (tanggal) {
+    conditions.push('DATE(pb.created_at) = ?');
+    values.push(tanggal); // Format: 'YYYY-MM-DD'
+  }
+
+  if (bulan) {
+    conditions.push('DATE_FORMAT(pb.created_at, "%Y-%m") = ?');
+    values.push(bulan); // Format: 'YYYY-MM'
+  }
+
+  if (pembeli_id) {
+    conditions.push('pb.pembeli_id = ?');
+    values.push(pembeli_id);
+  }
+
+  let whereClause = '';
+  if (conditions.length > 0) {
+    whereClause = 'WHERE ' + conditions.join(' AND ');
+  }
+
+  // PERBAIKAN: Tambahkan whereClause dan values ke query
   const query = `
     SELECT 
-      pj.id,
-      pj.faktur_penj,
-      pj.total,
-      pj.created_at,
-      pl.nama AS nama_pembeli,
-      GROUP_CONCAT(DISTINCT pd.nama_kayu ORDER BY pd.nama_kayu SEPARATOR ', ') AS kayu_terjual
-    FROM penjualan pj
-    LEFT JOIN pembeli pl ON pj.pembeli_id = pl.id
-    LEFT JOIN penjualan_detail pd ON pj.faktur_penj = pd.faktur_penj
-    GROUP BY pj.id
-    ORDER BY pj.created_at DESC
+      pb.*, 
+      pl.nama AS nama_pembeli, 
+      h.nama_kayu AS nama_barang
+    FROM penjualan pb
+    LEFT JOIN pembeli pl ON pb.pembeli_id = pl.id
+    LEFT JOIN harga_jual h ON pb.product_id = h.id
+    ${whereClause}
+    ORDER BY pb.created_at DESC
   `;
 
-  db.query(query, (err, results) => {
+  console.log('Executing query:', query); // Debugging
+  console.log('With values:', values); // Debugging
+
+  db.query(query, values, (err, results) => { // PERBAIKAN: Tambahkan values
     if (err) {
       console.error('Error fetching penjualan:', err);
       return res.status(500).json({ error: 'Database error' });
     }
+
     res.json(results);
   });
 });

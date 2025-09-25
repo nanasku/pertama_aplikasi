@@ -26,6 +26,7 @@ dependencies:
   whatsapp_unilink: ^2.0.1
   open_file: ^3.5.10
   syncfusion_flutter_pdf: ^31.1.20
+  image_picker: ^1.2.0
 
 dev_dependencies:
   flutter_test:

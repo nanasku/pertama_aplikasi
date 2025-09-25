@@ -43,7 +43,6 @@ router.get('/noFakturBaru', (req, res) => {
 });
 
 // GET semua transaksi pembelian
-// GET semua transaksi pembelian - PERBAIKAN
 router.get('/', (req, res) => {
   const { tanggal, bulan, penjual_id } = req.query;
 

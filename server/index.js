@@ -23,6 +23,7 @@ const penjualRoutes = require('./routes/penjual');
 const penjualanRoutes = require('./routes/penjualan');
 const pembelianRoutes = require('./routes/pembelian');
 const stokRoutes = require('./routes/stok');
+const userRoutes = require('./routes/user');
 
 // Debug: Pastikan routes terload
 console.log('Loading routes...');
@@ -35,6 +36,7 @@ app.use('/api/penjual', penjualRoutes);
 app.use('/api/penjualan', penjualanRoutes);
 app.use('/api/pembelian', pembelianRoutes);
 app.use('/api/stok', stokRoutes);
+app.use('/api/users', userRoutes);
 
 // Test route
 app.get('/api/test', (req, res) => {

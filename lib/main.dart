@@ -11,8 +11,7 @@ import 'pages/laporan_pembelian.dart';
 import 'pages/laporan_penjualan.dart';
 import 'pages/laporan_labarugi.dart';
 import 'pages/laporan_stok.dart';
-// import 'pages/pengaturan.dart';
-// import 'pages/bantuan.dart';
+import 'pages/profil.dart';
 
 import 'widgets/sidebar.dart';
 
@@ -60,7 +59,10 @@ class _MainLayoutState extends State<MainLayout> {
     LaporanPenjualan(), // 8: Laporan Penjualan
     LaporanLabaRugiPage(),
     LaporanStokPage(),
-    // Placeholder(), // 9: Laporan Laba Rugi (belum dibuat)
+    ProfilPage(userId: 1), // 11: Profil Pengguna - TAMBAHKAN INI
+    Placeholder(), // 12: Preferensi (placeholder)
+    Placeholder(), // 13: Keamanan (placeholder)
+    Placeholder(), // 14: Bantuan (placeholder)
     // PengaturanPage(), // 10: Pengaturan
     // BantuanPage(), // 11: Bantuan
   ];
@@ -147,7 +149,7 @@ class _MainLayoutState extends State<MainLayout> {
       case 10:
         return 'Laporan Stok';
       case 11:
-        return 'Pengaturan';
+        return 'Profil';
       case 12:
         return 'Bantuan';
       default:

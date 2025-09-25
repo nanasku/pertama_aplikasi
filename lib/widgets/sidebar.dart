@@ -99,15 +99,24 @@ class _SidebarState extends State<Sidebar> {
             ],
           ),
 
+          // Di bagian ExpansionTile Pengaturan, pastikan indexnya:
           ExpansionTile(
             leading: Icon(Icons.settings, color: Colors.grey[700]),
             title: Text('Pengaturan', style: TextStyle(color: Colors.black)),
             initiallyExpanded: _expandedIndex == 2,
             onExpansionChanged: (expanded) => _handleExpansion(2, expanded),
             children: [
-              _buildSubMenuTile(context, 'Profil Pengguna', 11),
+              _buildSubMenuTile(
+                context,
+                'Profil Pengguna',
+                11,
+              ), // Sesuai dengan index di main.dart
               _buildSubMenuTile(context, 'Preferensi', 12),
-              _buildSubMenuTile(context, 'Keamanan', 123),
+              _buildSubMenuTile(
+                context,
+                'Keamanan',
+                13,
+              ), // Diubah dari 123 menjadi 13
             ],
           ),
 
