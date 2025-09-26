@@ -4,6 +4,9 @@ import 'dart:io';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
+import 'dart:typed_data';
 
 class ProfilPage extends StatefulWidget {
   final int userId;
@@ -44,21 +47,22 @@ class _ProfilPageState extends State<ProfilPage> {
     }
   }
 
-  Future<void> _updateProfile() async {
+  Future<void> _updateProfile(User updatedUser) async {
     try {
-      final user = await _userFuture;
       List<int>? imageBytes;
 
       if (_selectedImage != null) {
         imageBytes = await _selectedImage!.readAsBytes();
       }
 
-      await UserService.updateUserProfile(widget.userId, user, imageBytes);
+      await UserService.updateUserProfile(
+        widget.userId,
+        updatedUser,
+        imageBytes,
+      );
 
       _showSuccess('Profil berhasil diperbarui');
-
-      // Reload data
-      _loadUserProfile();
+      _loadUserProfile(); // reload data dari server
     } catch (e) {
       _showError('Error: ${e.toString()}');
     }
@@ -86,6 +90,9 @@ class _ProfilPageState extends State<ProfilPage> {
     TextEditingController companyController = TextEditingController(
       text: user.companyName,
     );
+    TextEditingController alamatController = TextEditingController(
+      text: user.alamat,
+    );
 
     showDialog(
       context: context,
@@ -100,18 +107,16 @@ class _ProfilPageState extends State<ProfilPage> {
                   onTap: _pickImage,
                   child: CircleAvatar(
                     radius: 40,
+                    backgroundColor: Colors.blue, // Background color
                     backgroundImage: _selectedImage != null
                         ? FileImage(_selectedImage!)
                         : (user.profileImage != null
-                                  ? NetworkImage(
-                                      '${dotenv.env['API_BASE_URL']}/uploads/profiles/${user.profileImage}',
-                                    )
-                                  : const AssetImage(
-                                      'assets/default_profile.png',
-                                    ))
-                              as ImageProvider,
+                              ? NetworkImage(
+                                  '${dotenv.env['API_BASE_URL']}/uploads/profiles/${user.profileImage}',
+                                )
+                              : null),
                     child: _selectedImage == null && user.profileImage == null
-                        ? Icon(Icons.camera_alt, size: 30, color: Colors.white)
+                        ? Icon(Icons.person, size: 40, color: Colors.white)
                         : null,
                   ),
                 ),
@@ -141,6 +146,16 @@ class _ProfilPageState extends State<ProfilPage> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+                SizedBox(height: 10),
+                TextField(
+                  controller: alamatController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Alamat',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
               ],
             ),
           ),
@@ -153,7 +168,8 @@ class _ProfilPageState extends State<ProfilPage> {
               onPressed: () async {
                 if (usernameController.text.isEmpty ||
                     emailController.text.isEmpty ||
-                    companyController.text.isEmpty) {
+                    companyController.text.isEmpty ||
+                    alamatController.text.isEmpty) {
                   _showError('Semua field harus diisi');
                   return;
                 }
@@ -163,12 +179,16 @@ class _ProfilPageState extends State<ProfilPage> {
                   username: usernameController.text,
                   email: emailController.text,
                   companyName: companyController.text,
+                  alamat: alamatController.text,
                   profileImage: user.profileImage,
                 );
 
-                Navigator.pop(context); // Tutup dialog dulu
-                await _updateProfile();
+                Navigator.pop(context);
+                await _updateProfile(
+                  updatedUser,
+                ); // ✅ kirim updatedUser ke sini
               },
+
               child: Text('Simpan'),
             ),
           ],
@@ -190,7 +210,6 @@ class _ProfilPageState extends State<ProfilPage> {
           ),
           ElevatedButton(
             onPressed: () {
-              // Implement logout logic here
               Navigator.popUntil(context, (route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -279,17 +298,17 @@ class _ProfilPageState extends State<ProfilPage> {
             padding: EdgeInsets.all(20),
             child: Column(
               children: [
-                // Profile Photo
+                // Profile Photo - FIXED
                 Stack(
                   children: [
                     CircleAvatar(
                       radius: 60,
+                      backgroundColor: Colors.blue, // Background color
                       backgroundImage: user.profileImage != null
                           ? NetworkImage(
                               '${dotenv.env['API_BASE_URL']}/uploads/profiles/${user.profileImage}',
                             )
-                          : const AssetImage('assets/default_profile.png')
-                                as ImageProvider,
+                          : null,
                       child: user.profileImage == null
                           ? Icon(Icons.person, size: 60, color: Colors.white)
                           : null,
@@ -321,7 +340,10 @@ class _ProfilPageState extends State<ProfilPage> {
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 10),
-                Text('TPK', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                Text(
+                  'TPKApp Versi 01.00',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
                 SizedBox(height: 30),
 
                 // User Info Cards
@@ -342,6 +364,15 @@ class _ProfilPageState extends State<ProfilPage> {
                     leading: Icon(Icons.email, color: Colors.blue),
                     title: Text('Email'),
                     subtitle: Text(user.email.isNotEmpty ? user.email : '-'),
+                  ),
+                ),
+                SizedBox(height: 10),
+                Card(
+                  elevation: 4,
+                  child: ListTile(
+                    leading: Icon(Icons.location_on, color: Colors.blue),
+                    title: Text('Alamat'),
+                    subtitle: Text(user.alamat.isNotEmpty ? user.alamat : '-'),
                   ),
                 ),
 

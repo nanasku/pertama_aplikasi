@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../models/user_model.dart';
+import '../services/user_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Sidebar extends StatefulWidget {
   final Function(int) onItemSelected;
@@ -15,7 +18,14 @@ class Sidebar extends StatefulWidget {
 }
 
 class _SidebarState extends State<Sidebar> {
-  int? _expandedIndex; // menyimpan index ExpansionTile yang sedang dibuka
+  int? _expandedIndex;
+  late Future<User> _userFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _userFuture = UserService.getUserProfile(1); // Ambil data user dengan ID 1
+  }
 
   void _handleExpansion(int index, bool expanded) {
     setState(() {
@@ -33,33 +43,82 @@ class _SidebarState extends State<Sidebar> {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          DrawerHeader(
-            decoration: BoxDecoration(color: Colors.blue),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.white,
-                  radius: 30,
-                  child: Icon(Icons.business, color: Colors.blue, size: 30),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Kayu App',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+          // DrawerHeader dengan data dari database
+          FutureBuilder<User>(
+            future: _userFuture,
+            builder: (context, snapshot) {
+              // Default values jika data belum loaded
+              String companyName = 'Kayu App';
+              String? profileImage;
+
+              if (snapshot.hasData) {
+                final user = snapshot.data!;
+                companyName = user.companyName;
+                profileImage = user.profileImage;
+              }
+
+              return DrawerHeader(
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  image: DecorationImage(
+                    image: AssetImage(
+                      'assets/sidebar_bg.png',
+                    ), // Optional background
+                    fit: BoxFit.cover,
+                    colorFilter: ColorFilter.mode(
+                      Colors.blue.withOpacity(0.7),
+                      BlendMode.darken,
+                    ),
                   ),
                 ),
-                Text(
-                  'Manajemen Penjualan',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Profile Image dari database
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.white,
+                      backgroundImage: profileImage != null
+                          ? NetworkImage(
+                              '${dotenv.env['API_BASE_URL']}/uploads/profiles/$profileImage',
+                            )
+                          : null,
+                      child: profileImage == null
+                          ? Icon(Icons.business, color: Colors.blue, size: 30)
+                          : null,
+                    ),
+                    SizedBox(height: 10),
+
+                    // Company Name dari database
+                    Text(
+                      companyName,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    // Email (jika ingin ditampilkan)
+                    if (snapshot.hasData)
+                      Text(
+                        snapshot.data!.email,
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+
+                    // Subtitle
+                    Text(
+                      'TPKApp Versi 01.00',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
+
           _buildListTile(context, Icons.dashboard, 'Dashboard', 0),
+
           ExpansionTile(
             leading: Icon(Icons.inventory, color: Colors.grey[700]),
             title: Text('Master Data', style: TextStyle(color: Colors.black)),
@@ -99,25 +158,12 @@ class _SidebarState extends State<Sidebar> {
             ],
           ),
 
-          // Di bagian ExpansionTile Pengaturan, pastikan indexnya:
           ExpansionTile(
             leading: Icon(Icons.settings, color: Colors.grey[700]),
             title: Text('Pengaturan', style: TextStyle(color: Colors.black)),
             initiallyExpanded: _expandedIndex == 2,
             onExpansionChanged: (expanded) => _handleExpansion(2, expanded),
-            children: [
-              _buildSubMenuTile(
-                context,
-                'Profil Pengguna',
-                11,
-              ), // Sesuai dengan index di main.dart
-              _buildSubMenuTile(context, 'Preferensi', 12),
-              _buildSubMenuTile(
-                context,
-                'Keamanan',
-                13,
-              ), // Diubah dari 123 menjadi 13
-            ],
+            children: [_buildSubMenuTile(context, 'Profil Pengguna', 11)],
           ),
 
           _buildListTile(context, Icons.help, 'Bantuan', 14),
@@ -144,7 +190,7 @@ class _SidebarState extends State<Sidebar> {
       ),
       selected: isSelected,
       onTap: () {
-        Navigator.pop(context); // tutup drawer
+        Navigator.pop(context);
         widget.onItemSelected(index);
       },
     );

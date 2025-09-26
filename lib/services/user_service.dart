@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http_parser/http_parser.dart';
 
 class UserService {
   static final String baseUrl = '${dotenv.env['API_BASE_URL']}/users';
@@ -47,6 +48,7 @@ class UserService {
       request.fields['username'] = user.username;
       request.fields['email'] = user.email;
       request.fields['company_name'] = user.companyName;
+      request.fields['alamat'] = user.alamat;
 
       if (imageBytes != null) {
         request.files.add(
@@ -54,6 +56,7 @@ class UserService {
             'profile_image',
             imageBytes,
             filename: 'profile.jpg',
+            contentType: MediaType('image', 'jpeg'),
           ),
         );
       }
