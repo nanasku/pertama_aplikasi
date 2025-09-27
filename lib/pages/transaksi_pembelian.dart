@@ -586,25 +586,25 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
   );
 
   String formatItem(item) {
-    // Baris 1: Identitas barang
+    // Baris 1: Identitas barang tanpa @jumlah
     String kriteria = getShortLabel(
       item['kriteria'],
-    ).padRight(3); // e.g., 'R 1'
-    String diameter = 'D${item['diameter']}'.padRight(4); // e.g., 'D10'
+    ).padRight(3); // e.g., 'St '
+    String diameter = 'D${item['diameter']}'.padRight(4); // e.g., 'D21 '
     String panjang = 'P${item['panjang']}'.padRight(5); // e.g., 'P130'
-    String jumlah = '@${item['jumlah']}'; // e.g., '@8'
 
-    String line1 = '$kriteria $diameter $panjang $jumlah';
+    String line1 = '$kriteria $diameter $panjang';
 
     // Baris 2: Kalkulasi — rata kanan
+    String jumlah = '@${item['jumlah']}'; // e.g., '@5'
     String volume = '${item['volume'].toStringAsFixed(0)}cm³';
     String harga = formatter.format(item['harga']);
     String jumlahHarga = formatter.format(item['jumlahHarga']);
 
-    // Misalnya hasil: (23cm³ x 1.500) = 172.500
-    String calc = '($volume x $harga) = $jumlahHarga';
+    // Format baru: (@5 x 45cm³ x 800) = 180.000
+    String calc = '($jumlah x $volume x $harga) = $jumlahHarga';
 
-    // Sesuaikan panjang maksimum baris struk (umumnya 42 karakter untuk printer POS)
+    // Sesuaikan panjang maksimum baris struk (umumnya 42 karakter)
     String line2 = calc.padLeft(42);
 
     return '$line1\n$line2';
@@ -660,7 +660,7 @@ class _TransaksiPembelianState extends State<TransaksiPembelian> {
     ========================================
     ${data.map((item) => formatItem(item)).join('\n--------------------------------\n')}
     ========================================
-    Total Volume     : ${totalVolume.toStringAsFixed(2).padLeft(16)} cm³
+    Total Volume     : ${NumberFormat.decimalPattern('id').format(totalVolume).padLeft(16)} cm³
     Total Harga      : ${formatter.format(totalHarga).padLeft(19)}
     ${operasionals.isNotEmpty ? '----------------------------------------\nBiaya Operasional:\n$operasionalDetail----------------------------------------' : ''}
     Total Operasional: ${formatter.format(totalOperasional).padLeft(19)}

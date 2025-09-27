@@ -62,7 +62,7 @@ class _SidebarState extends State<Sidebar> {
                   color: Colors.blue,
                   image: DecorationImage(
                     image: AssetImage(
-                      'assets/images/default_profile.jpg',
+                      '/images/default_profile.jpg',
                     ), // Optional background
                     fit: BoxFit.cover,
                     colorFilter: ColorFilter.mode(
