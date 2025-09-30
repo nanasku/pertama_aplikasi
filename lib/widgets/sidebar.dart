@@ -24,7 +24,7 @@ class _SidebarState extends State<Sidebar> {
   @override
   void initState() {
     super.initState();
-    _userFuture = UserService.getUserProfile(1); // Ambil data user dengan ID 1
+    _userFuture = UserService.getUserProfile(1);
   }
 
   void _handleExpansion(int index, bool expanded) {
@@ -56,58 +56,42 @@ class _SidebarState extends State<Sidebar> {
                 companyName = user.companyName;
                 profileImage = user.profileImage;
               }
-
               return DrawerHeader(
                 decoration: BoxDecoration(
                   color: Colors.blue,
-                  image: DecorationImage(
-                    image: AssetImage(
-                      '/images/default_profile.jpg',
-                    ), // Optional background
-                    fit: BoxFit.cover,
-                    colorFilter: ColorFilter.mode(
-                      Colors.blue.withOpacity(0.7),
-                      BlendMode.darken,
-                    ),
-                  ),
+                  // Hapus background image atau gunakan AssetImage yang benar
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Profile Image dari database
+                    // Ganti bagian CircleAvatar dengan:
                     CircleAvatar(
                       radius: 30,
                       backgroundColor: Colors.white,
-                      backgroundImage: profileImage != null
-                          ? NetworkImage(
-                              '${dotenv.env['API_BASE_URL']}/uploads/profiles/$profileImage',
-                            )
-                          : null,
-                      child: profileImage == null
-                          ? Icon(Icons.business, color: Colors.blue, size: 30)
-                          : null,
+                      child: Icon(Icons.business, color: Colors.blue, size: 30),
                     ),
-                    SizedBox(height: 10),
-
+                    const SizedBox(height: 10),
                     // Company Name dari database
                     Text(
                       companyName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     // Email (jika ingin ditampilkan)
                     if (snapshot.hasData)
                       Text(
                         snapshot.data!.email,
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                       ),
-
                     // Subtitle
-                    Text(
+                    const Text(
                       'TPKApp Versi 01.00',
                       style: TextStyle(color: Colors.white70, fontSize: 14),
                     ),
@@ -121,7 +105,10 @@ class _SidebarState extends State<Sidebar> {
 
           ExpansionTile(
             leading: Icon(Icons.inventory, color: Colors.grey[700]),
-            title: Text('Master Data', style: TextStyle(color: Colors.black)),
+            title: const Text(
+              'Master Data',
+              style: TextStyle(color: Colors.black),
+            ),
             initiallyExpanded: _expandedIndex == 0,
             onExpansionChanged: (expanded) => _handleExpansion(0, expanded),
             children: [
@@ -136,19 +123,14 @@ class _SidebarState extends State<Sidebar> {
           _buildListTile(
             context,
             Icons.shopping_cart,
-            'Transaksi Pembelian',
-            2,
-          ),
-          _buildListTile(
-            context,
-            Icons.shopping_cart,
             'Transaksi Penjualan',
             1,
           ),
+          _buildListTile(context, Icons.inventory, 'Transaksi Pembelian', 2),
 
           ExpansionTile(
             leading: Icon(Icons.bar_chart, color: Colors.grey[700]),
-            title: Text('Laporan', style: TextStyle(color: Colors.black)),
+            title: const Text('Laporan', style: TextStyle(color: Colors.black)),
             initiallyExpanded: _expandedIndex == 1,
             onExpansionChanged: (expanded) => _handleExpansion(1, expanded),
             children: [
@@ -161,10 +143,16 @@ class _SidebarState extends State<Sidebar> {
 
           ExpansionTile(
             leading: Icon(Icons.settings, color: Colors.grey[700]),
-            title: Text('Pengaturan', style: TextStyle(color: Colors.black)),
+            title: const Text(
+              'Pengaturan',
+              style: TextStyle(color: Colors.black),
+            ),
             initiallyExpanded: _expandedIndex == 2,
             onExpansionChanged: (expanded) => _handleExpansion(2, expanded),
-            children: [_buildSubMenuTile(context, 'Profil Pengguna', 11)],
+            children: [
+              _buildSubMenuTile(context, 'Profil Pengguna', 11),
+              _buildSubMenuTile(context, 'Konfigurasi Database', 13),
+            ],
           ),
 
           _buildListTile(context, Icons.help, 'Bantuan', 14),
@@ -200,7 +188,12 @@ class _SidebarState extends State<Sidebar> {
   Widget _buildSubMenuTile(BuildContext context, String title, int index) {
     final bool isSelected = widget.selectedIndex == index;
     return ListTile(
-      contentPadding: EdgeInsets.only(left: 72.0, right: 16.0),
+      contentPadding: const EdgeInsets.only(left: 72.0, right: 16.0),
+      leading: Icon(
+        Icons.circle,
+        size: 8,
+        color: isSelected ? Colors.blue : Colors.grey[600],
+      ),
       title: Text(
         title,
         style: TextStyle(

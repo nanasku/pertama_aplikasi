@@ -13,6 +13,7 @@ import 'pages/laporan_penjualan.dart';
 import 'pages/laporan_labarugi.dart';
 import 'pages/laporan_stok.dart';
 import 'pages/profil.dart';
+import 'pages/config_database.dart';
 
 import 'widgets/sidebar.dart';
 
@@ -68,15 +69,13 @@ class _MainLayoutState extends State<MainLayout> {
     PenjualPage(), // 6: Penjual
     LaporanPembelian(), // 7: Laporan Pembelian
     LaporanPenjualan(), // 8: Laporan Penjualan
-    LaporanLabaRugiPage(),
-    LaporanStokPage(),
-    ProfilPage(userId: 1), // 11: Profil Pengguna - TAMBAHKAN INI
-    KaryawanPage(),
-    Placeholder(), // 12: Preferensi (placeholder)
-    Placeholder(), // 13: Keamanan (placeholder)
-    Placeholder(), // 14: Bantuan (placeholder)
-    // PengaturanPage(), // 10: Pengaturan
-    // BantuanPage(), // 11: Bantuan
+    LaporanLabaRugiPage(), // 9: Laba Rugi
+    LaporanStokPage(), // 10: Stok
+    ProfilPage(userId: 1), // 11: Profil
+    KaryawanPage(), // 12: Karyawan
+    ConfigDatabasePage(), // 13: Konfigurasi Database
+    Placeholder(), // 14: Preferensi
+    Placeholder(), // 15: Bantuan
   ];
 
   void _onItemTapped(int index) {
@@ -165,6 +164,8 @@ class _MainLayoutState extends State<MainLayout> {
       case 12:
         return 'Karyawan';
       case 13:
+        return 'Konfigurasi Database';
+      case 14:
         return 'Bantuan';
       default:
         return 'Aplikasi Kayu';
