@@ -294,122 +294,160 @@ class _ProfilPageState extends State<ProfilPage> {
 
           final user = snapshot.data!;
 
-          return Padding(
-            padding: EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Profile Photo - FIXED
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.blue, // Background color
-                      backgroundImage: user.profileImage != null
-                          ? NetworkImage(
-                              '${dotenv.env['API_BASE_URL']}/uploads/profiles/${user.profileImage}',
-                            )
-                          : null,
-                      child: user.profileImage == null
-                          ? Icon(Icons.person, size: 60, color: Colors.white)
-                          : null,
+          return SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
                     ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.blue,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.camera_alt,
-                          size: 20,
-                          color: Colors.white,
+                    child: IntrinsicHeight(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            // Profile Photo
+                            Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 60,
+                                  backgroundColor: Colors.blue,
+                                  backgroundImage: user.profileImage != null
+                                      ? NetworkImage(
+                                          '${dotenv.env['API_BASE_URL']}/uploads/profiles/${user.profileImage}',
+                                        )
+                                      : null,
+                                  child: user.profileImage == null
+                                      ? Icon(
+                                          Icons.person,
+                                          size: 60,
+                                          color: Colors.white,
+                                        )
+                                      : null,
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    padding: EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.camera_alt,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 20),
+
+                            // Company Name
+                            Text(
+                              user.companyName,
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 10),
+                            Text(
+                              'TPKApp Versi 01.00',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            SizedBox(height: 30),
+
+                            // Info Cards
+                            Card(
+                              elevation: 4,
+                              child: ListTile(
+                                leading: Icon(Icons.person, color: Colors.blue),
+                                title: Text('Username'),
+                                subtitle: Text(
+                                  user.username.isNotEmpty
+                                      ? user.username
+                                      : '-',
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 10),
+                            Card(
+                              elevation: 4,
+                              child: ListTile(
+                                leading: Icon(Icons.email, color: Colors.blue),
+                                title: Text('Email'),
+                                subtitle: Text(
+                                  user.email.isNotEmpty ? user.email : '-',
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 10),
+                            Card(
+                              elevation: 4,
+                              child: ListTile(
+                                leading: Icon(
+                                  Icons.location_on,
+                                  color: Colors.blue,
+                                ),
+                                title: Text('Alamat'),
+                                subtitle: Text(
+                                  user.alamat.isNotEmpty ? user.alamat : '-',
+                                ),
+                              ),
+                            ),
+
+                            Spacer(),
+
+                            // Buttons
+                            Column(
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _showEditDialog(user),
+                                    icon: Icon(Icons.edit),
+                                    label: Text('Edit Profil'),
+                                    style: ElevatedButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 15,
+                                      ),
+                                      backgroundColor: Colors.blue,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _showLogoutDialog,
+                                    icon: Icon(Icons.logout),
+                                    label: Text('Logout'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 15,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 20),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
-                SizedBox(height: 20),
-
-                // Company Name (TPK)
-                Text(
-                  user.companyName,
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'TPKApp Versi 01.00',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-                SizedBox(height: 30),
-
-                // User Info Cards
-                Card(
-                  elevation: 4,
-                  child: ListTile(
-                    leading: Icon(Icons.person, color: Colors.blue),
-                    title: Text('Username'),
-                    subtitle: Text(
-                      user.username.isNotEmpty ? user.username : '-',
-                    ),
                   ),
-                ),
-                SizedBox(height: 10),
-                Card(
-                  elevation: 4,
-                  child: ListTile(
-                    leading: Icon(Icons.email, color: Colors.blue),
-                    title: Text('Email'),
-                    subtitle: Text(user.email.isNotEmpty ? user.email : '-'),
-                  ),
-                ),
-                SizedBox(height: 10),
-                Card(
-                  elevation: 4,
-                  child: ListTile(
-                    leading: Icon(Icons.location_on, color: Colors.blue),
-                    title: Text('Alamat'),
-                    subtitle: Text(user.alamat.isNotEmpty ? user.alamat : '-'),
-                  ),
-                ),
-
-                Spacer(),
-
-                // Buttons
-                Column(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _showEditDialog(user),
-                        icon: Icon(Icons.edit),
-                        label: Text('Edit Profil'),
-                        style: ElevatedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 15),
-                          backgroundColor: Colors.blue,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _showLogoutDialog,
-                        icon: Icon(Icons.logout),
-                        label: Text('Logout'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          padding: EdgeInsets.symmetric(vertical: 15),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 20),
-              ],
+                );
+              },
             ),
           );
         },

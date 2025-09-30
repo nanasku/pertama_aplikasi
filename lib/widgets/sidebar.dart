@@ -129,6 +129,7 @@ class _SidebarState extends State<Sidebar> {
               _buildSubMenuTile(context, 'Data Harga Jual', 4),
               _buildSubMenuTile(context, 'Data Pembeli', 5),
               _buildSubMenuTile(context, 'Data Penjual', 6),
+              _buildSubMenuTile(context, 'Data Karyawan', 12),
             ],
           ),
 

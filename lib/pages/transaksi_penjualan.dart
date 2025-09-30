@@ -615,12 +615,13 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
     // Hitung total
     double totalHarga = data.fold(
       0,
-      (sum, item) => sum + (item['jumlahHarga'] as double),
+      (sum, item) => sum + (item['jumlahHarga'] as num).toDouble(), // ✅ AMAN
     );
+
     double totalVolume = data.fold(
       0,
       (sum, item) =>
-          sum + ((item['volume'] as double) * (item['jumlah'] as int)),
+          sum + ((item['volume'] as num).toDouble() * (item['jumlah'] as int)),
     );
 
     // Hitung total operasional
@@ -859,60 +860,74 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
             SizedBox(height: 10),
 
             // Custom Kriteria
-            Text(
-              'Custom Kriteria:',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: Text(
+                    'Custom :',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        [
+                          {'short': 'St', 'full': 'Standar'},
+                          {'short': 'Sp A', 'full': 'Super A'},
+                          {'short': 'Sp B', 'full': 'Super B'},
+                          {'short': 'Sp C', 'full': 'Super C'},
+                        ].map((item) {
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                selectedCustomKriteria =
+                                    selectedCustomKriteria == item['full']
+                                    ? null
+                                    : item['full'];
+                              });
+                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selectedCustomKriteria == item['full']
+                                    ? Colors.lightBlue
+                                    : Colors.grey[200],
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                item['short'].toString(),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: selectedCustomKriteria == item['full']
+                                      ? Colors.white
+                                      : Colors.black,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children:
-                  [
-                    {'short': 'St', 'full': 'Standar'},
-                    {'short': 'Sp A', 'full': 'Super A'},
-                    {'short': 'Sp B', 'full': 'Super B'},
-                    {'short': 'Sp C', 'full': 'Super C'},
-                  ].map((item) {
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          selectedCustomKriteria =
-                              selectedCustomKriteria == item['full']
-                              ? null
-                              : item['full'];
-                        });
-                      },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: selectedCustomKriteria == item['full']
-                              ? Colors.lightBlue
-                              : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(
-                          item['short'].toString(),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: selectedCustomKriteria == item['full']
-                                ? Colors.white
-                                : Colors.black,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-            ),
+
             SizedBox(height: 10),
 
             // Input Panjang dan Diameter
             Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                // Panjang
                 Expanded(
+                  flex: 3,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -929,7 +944,6 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
                         ),
                         onChanged: (value) => setState(() => panjang = value),
                         onTap: () {
-                          // Blok semua teks saat TextField diklik
                           panjangController.selection = TextSelection(
                             baseOffset: 0,
                             extentOffset: panjangController.text.length,
@@ -940,7 +954,10 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
                   ),
                 ),
                 SizedBox(width: 10),
+
+                // Diameter
                 Expanded(
+                  flex: 3,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -957,7 +974,6 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
                         ),
                         onChanged: (value) => setState(() => diameter = value),
                         onTap: () {
-                          // Blok semua teks saat TextField diklik
                           diameterController.selection = TextSelection(
                             baseOffset: 0,
                             extentOffset: diameterController.text.length,
@@ -967,12 +983,18 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
                     ],
                   ),
                 ),
+                SizedBox(width: 10),
+
+                // Tombol OK
+                ElevatedButton(
+                  onPressed: handleAddOrUpdate,
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                  ),
+                  child: Text('OK'),
+                ),
               ],
             ),
-            SizedBox(height: 10),
-
-            // Tombol OK
-            ElevatedButton(onPressed: handleAddOrUpdate, child: Text('OK')),
             SizedBox(height: 10),
 
             // Tabel Data Transaksi
@@ -1004,7 +1026,7 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
                         child: Padding(
                           padding: EdgeInsets.all(4),
                           child: Text(
-                            'Grade',
+                            'Grd',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -1346,21 +1368,23 @@ class _TransaksiPenjualanState extends State<TransaksiPenjualan> {
                   ),
                   child: Text('Simpan/Cetak'),
                 ),
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: () => _sharePDF(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                   ),
-                  child: Text('Share PDF'),
+                  icon: Icon(Icons.share),
+                  label: Text('PDF'),
                 ),
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: () => _shareExcel(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[700],
                     foregroundColor: Colors.white,
                   ),
-                  child: Text('Share Excel'),
+                  icon: Icon(Icons.share),
+                  label: Text('Excel'),
                 ),
               ],
             ),

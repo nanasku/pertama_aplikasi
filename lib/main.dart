@@ -7,6 +7,7 @@ import 'pages/master_beli.dart';
 import 'pages/master_jual.dart';
 import 'pages/pembeli.dart';
 import 'pages/penjual.dart';
+import 'pages/karyawan.dart';
 import 'pages/laporan_pembelian.dart';
 import 'pages/laporan_penjualan.dart';
 import 'pages/laporan_labarugi.dart';
@@ -33,6 +34,16 @@ class MyApp extends StatelessWidget {
       ),
       home: MainLayout(),
       debugShowCheckedModeBanner: false,
+
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaleFactor: mediaQuery.textScaleFactor.clamp(1.0, 1.0),
+          ),
+          child: child!,
+        );
+      },
     );
   }
 }
@@ -60,6 +71,7 @@ class _MainLayoutState extends State<MainLayout> {
     LaporanLabaRugiPage(),
     LaporanStokPage(),
     ProfilPage(userId: 1), // 11: Profil Pengguna - TAMBAHKAN INI
+    KaryawanPage(),
     Placeholder(), // 12: Preferensi (placeholder)
     Placeholder(), // 13: Keamanan (placeholder)
     Placeholder(), // 14: Bantuan (placeholder)
@@ -151,6 +163,8 @@ class _MainLayoutState extends State<MainLayout> {
       case 11:
         return 'Profil';
       case 12:
+        return 'Karyawan';
+      case 13:
         return 'Bantuan';
       default:
         return 'Aplikasi Kayu';

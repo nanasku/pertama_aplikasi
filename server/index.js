@@ -20,6 +20,7 @@ const masterBeliRoutes = require('./routes/masterbeli');
 const masterJualRoutes = require('./routes/masterjual');
 const pembeliRoutes = require('./routes/pembeli');
 const penjualRoutes = require('./routes/penjual');
+const karyawanRoutes = require('./routes/karyawan');
 const penjualanRoutes = require('./routes/penjualan');
 const pembelianRoutes = require('./routes/pembelian');
 const stokRoutes = require('./routes/stok');
@@ -33,6 +34,7 @@ app.use('/api/harga-beli', masterBeliRoutes);
 app.use('/api/harga-jual', masterJualRoutes);
 app.use('/api/pembeli', pembeliRoutes);
 app.use('/api/penjual', penjualRoutes);
+app.use('/api/karyawan', karyawanRoutes);
 app.use('/api/penjualan', penjualanRoutes);
 app.use('/api/pembelian', pembelianRoutes);
 app.use('/api/stok', stokRoutes);
@@ -72,12 +74,6 @@ app.use('*', (req, res) => {
   });
 });
 
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
-  console.log(`Available routes:`);
-  console.log(`- GET /api/test`);
-  console.log(`- GET /api/stok`);
-  console.log(`- GET /api/stok/nama-kayu`);
-  console.log(`- GET /api/stok/test`);
-  console.log(`- GET /api/debug/stok`);
 });
