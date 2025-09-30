@@ -37,6 +37,7 @@ router.get('/laporan', (req, res) => {
     return res.status(400).json({ error: 'Parameter tahun dan bulan wajib' });
   }
 
+  // Di router.get('/laporan'), perbaiki query untuk konversi ke cm³:
   const query = `
     SELECT 
       s.nama_kayu,
@@ -46,7 +47,14 @@ router.get('/laporan', (req, res) => {
       COALESCE(sa.stok_awal, 0) AS stok_awal,
       COALESCE(SUM(pb.jumlah), 0) AS stok_pembelian,
       COALESCE(SUM(pj.jumlah), 0) AS stok_penjualan,
-      (COALESCE(sa.stok_awal, 0) + COALESCE(SUM(pb.jumlah),0) - COALESCE(SUM(pj.jumlah),0)) AS stok_akhir
+      (COALESCE(sa.stok_awal, 0) + COALESCE(SUM(pb.jumlah),0) - COALESCE(SUM(pj.jumlah),0)) AS stok_akhir,
+      -- 🆕 Hitung total volume dalam m³ (TANPA konversi ke cm³)
+      ROUND(
+        (
+          COALESCE(SUM(pb.volume * pb.jumlah), 0) - 
+          COALESCE(SUM(pj.volume * pj.jumlah), 0)
+        ), 0
+      ) AS total_volume
     FROM stok s
     LEFT JOIN stok_awal sa
       ON s.nama_kayu = sa.nama_kayu

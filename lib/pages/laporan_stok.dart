@@ -113,7 +113,7 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
 
         print('Filtered data: $filteredData');
 
-        // Konversi ke List<StokData>
+        // Di bagian mapping data dari API:
         final List<StokData> loadedData = filteredData
             .map(
               (item) => StokData(
@@ -126,8 +126,11 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
                     int.tryParse(item['stok_pembelian'].toString()) ?? 0,
                 stokPenjualan:
                     int.tryParse(item['stok_penjualan'].toString()) ?? 0,
-                stokRusak: 0, // nanti kalau ada tabel rusak bisa ditambah
+                stokRusak: 0,
                 stokAkhir: int.tryParse(item['stok_akhir'].toString()) ?? 0,
+                totalVolume:
+                    int.tryParse(item['total_volume'].toString()) ??
+                    0, // 🆕 Ambil total_volume
               ),
             )
             .toList();
@@ -209,7 +212,7 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
     );
 
     final PdfGrid grid = PdfGrid();
-    grid.columns.add(count: 7);
+    grid.columns.add(count: 8);
 
     final PdfGridRow headerRow = grid.headers.add(1)[0];
     headerRow.cells[0].value = 'Kriteria';
@@ -219,7 +222,9 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
     headerRow.cells[4].value = 'Stok Terjual';
     headerRow.cells[5].value = 'Stok Rusak';
     headerRow.cells[6].value = 'Stok Akhir';
+    headerRow.cells[7].value = 'Total Volume';
 
+    // Di _generatePDF():
     for (final stok in stokList) {
       final PdfGridRow row = grid.rows.add();
       row.cells[0].value = stok.kriteria;
@@ -229,6 +234,7 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
       row.cells[4].value = stok.stokPenjualan.toString();
       row.cells[5].value = stok.stokRusak.toString();
       row.cells[6].value = stok.stokAkhir.toString();
+      row.cells[7].value = '${stok.totalVolume} cm³'; // 🆕 Tampilkan dalam cm³
     }
 
     grid.draw(
@@ -688,6 +694,7 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
                           DataColumn(label: Text('Stok Jual')),
                           DataColumn(label: Text('Stok Rusak')),
                           DataColumn(label: Text('Stok Akhir')),
+                          DataColumn(label: Text('Total Volume')),
                         ],
                         rows: stokList.map((stok) {
                           return DataRow(
@@ -709,6 +716,9 @@ class _LaporanStokPageState extends State<LaporanStokPage> {
                                   ),
                                 ),
                               ),
+                              DataCell(
+                                Text('${stok.totalVolume} cm³'),
+                              ), // 🆕 Tampilkan dalam cm³
                             ],
                           );
                         }).toList(),
@@ -756,11 +766,12 @@ class StokData {
   final String namaKayu;
   final int diameter;
   final int panjang;
-  final int stokAwal; // 🆕 stok awal
+  final int stokAwal;
   final int stokPembelian;
   final int stokPenjualan;
   final int stokRusak;
-  final int stokAkhir; // 🆕 stok akhir dari backend
+  final int stokAkhir;
+  final int totalVolume; // 🆕 Volume sebagai integer
 
   StokData({
     required this.kriteria,
@@ -772,5 +783,6 @@ class StokData {
     required this.stokPenjualan,
     required this.stokRusak,
     required this.stokAkhir,
+    required this.totalVolume,
   });
 }

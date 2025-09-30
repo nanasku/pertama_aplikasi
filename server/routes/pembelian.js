@@ -43,6 +43,7 @@ router.get('/noFakturBaru', (req, res) => {
 });
 
 // GET semua transaksi pembelian
+// GET semua transaksi pembelian - PERBAIKAN
 router.get('/', (req, res) => {
   const { tanggal, bulan, penjual_id } = req.query;
 
@@ -95,6 +96,199 @@ router.get('/', (req, res) => {
   });
 });
 
+
+// POST tambah transaksi pembelian (dengan detail)
+router.post('/', (req, res) => {
+  const {
+    no_faktur,
+    penjual_id,
+    product_id,
+    total, // total yang dikirim dari Flutter
+    items,
+    operasionals
+  } = req.body;
+
+  console.log('Received POST /pembelian with data:', {
+    no_faktur,
+    penjual_id,
+    product_id,
+    total,
+    items_count: items ? items.length : 0,
+    operasional_count: operasionals ? operasionals.length : 0
+  });
+
+  db.beginTransaction((err) => {
+    if (err) {
+      console.error('Error starting transaction:', err);
+      return res.status(500).json({ error: 'Database error - transaction failed' });
+    }
+
+    // 1. Insert data utama pembelian
+    const queryPembelian = `
+      INSERT INTO pembelian (faktur_pemb, penjual_id, product_id, total, created_at)
+      VALUES (?, ?, ?, ?, NOW())
+    `;
+    // Pastikan total adalah number
+    const valuesPembelian = [no_faktur, penjual_id, product_id, Number(total) || 0];
+
+    db.query(queryPembelian, valuesPembelian, (err, results) => {
+      if (err) {
+        console.error('Error creating pembelian:', err);
+        return db.rollback(() => {
+          res.status(500).json({ error: 'Database error - pembelian insert failed: ' + err.message });
+        });
+      }
+
+      const pembelianId = results.insertId;
+
+      // 2. Insert detail pembelian
+      const insertDetail = (cb) => {
+        if (items && items.length > 0) {
+          const queryDetail = `
+            INSERT INTO pembelian_detail 
+            (faktur_pemb, nama_kayu, kriteria, diameter, panjang, jumlah, volume, harga_beli, jumlah_harga_beli) 
+            VALUES ?
+          `;
+          const valuesDetail = items.map(item => [
+            no_faktur,
+            item.nama_kayu || '',
+            item.kriteria,
+            item.diameter,
+            item.panjang,
+            item.jumlah,
+            item.volume,
+            item.harga_beli,
+            item.jumlah_harga_beli
+          ]);
+
+          db.query(queryDetail, [valuesDetail], (err) => {
+            if (err) {
+              return cb(err);
+            }
+            cb(null);
+          });
+        } else {
+          cb(null);
+        }
+      };
+
+      // 3. Insert operasional
+      const insertOperasional = (cb) => {
+        if (operasionals && operasionals.length > 0) {
+          const queryOps = `
+            INSERT INTO pembelian_operasional (faktur_pemb, jenis, biaya, tipe)
+            VALUES ?
+          `;
+          const valuesOps = operasionals.map(op => [
+            no_faktur,
+            op.jenis || '',
+            op.biaya,
+            op.tipe
+          ]);
+
+          db.query(queryOps, [valuesOps], (err) => {
+            if (err) {
+              return cb(err);
+            }
+            cb(null);
+          });
+        } else {
+          cb(null);
+        }
+      };
+
+      // 4. Kalkulasi ulang total untuk memastikan keakuratan
+      const recalculateTotal = (cb) => {
+        const queryRecalc = `
+          SELECT 
+            COALESCE(SUM(pd.jumlah_harga_beli), 0) as total_items,
+            COALESCE(SUM(
+              CASE 
+                WHEN po.tipe = 'tambah' THEN po.biaya 
+                ELSE -po.biaya 
+              END
+            ), 0) as total_ops
+          FROM pembelian_detail pd
+          LEFT JOIN pembelian_operasional po ON pd.faktur_pemb = po.faktur_pemb
+          WHERE pd.faktur_pemb = ?
+          GROUP BY pd.faktur_pemb
+        `;
+
+        db.query(queryRecalc, [no_faktur], (err, results) => {
+          if (err) return cb(err);
+          
+          if (results.length > 0) {
+            // PERBAIKAN: Konversi ke number explisit
+            const totalItems = Number(results[0].total_items) || 0;
+            const totalOps = Number(results[0].total_ops) || 0;
+            const finalTotal = totalItems + totalOps;
+
+            console.log('Recalculated total:', { 
+              totalItems, 
+              totalOps, 
+              finalTotal,
+              types: {
+                totalItems: typeof totalItems,
+                totalOps: typeof totalOps,
+                finalTotal: typeof finalTotal
+              }
+            });
+
+            // Update total di pembelian
+            const updateQuery = `UPDATE pembelian SET total = ? WHERE faktur_pemb = ?`;
+            db.query(updateQuery, [finalTotal, no_faktur], (err) => {
+              if (err) return cb(err);
+              cb(null, finalTotal);
+            });
+          } else {
+            cb(null, Number(total) || 0);
+          }
+        });
+      };
+
+      // Jalankan proses berurutan
+      insertDetail((err) => {
+        if (err) {
+          return db.rollback(() => {
+            res.status(500).json({ error: 'Database error - detail insert failed: ' + err.message });
+          });
+        }
+
+        insertOperasional((err) => {
+          if (err) {
+            return db.rollback(() => {
+              res.status(500).json({ error: 'Database error - operasional insert failed: ' + err.message });
+            });
+          }
+
+          recalculateTotal((err, finalTotal) => {
+            if (err) {
+              return db.rollback(() => {
+                res.status(500).json({ error: 'Database error - recalculate total failed: ' + err.message });
+              });
+            }
+
+            db.commit((err) => {
+              if (err) {
+                return db.rollback(() => {
+                  res.status(500).json({ error: 'Database error - commit failed: ' + err.message });
+                });
+              }
+
+              console.log('Transaction completed successfully. Final total:', finalTotal);
+              res.status(201).json({
+                message: 'Transaksi pembelian created successfully',
+                id: pembelianId,
+                final_total: finalTotal
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
 //query ambil data pembelian_operasional
 router.get('/:id', (req, res) => {
   const { id } = req.params;
@@ -133,161 +327,6 @@ router.get('/:id', (req, res) => {
 
         pembelian.operasionals = opsResults;
         res.json(pembelian);
-      });
-    });
-  });
-});
-
-// POST tambah transaksi pembelian (dengan detail)
-router.post('/', (req, res) => {
-  const {
-    no_faktur,
-    penjual_id,
-    product_id,
-    total,
-    items, // array dari pembelian_detail
-    operasionals // array dari pembelian_operasional
-  } = req.body;
-
-  console.log('Received POST /pembelian with data:', {
-    no_faktur,
-    penjual_id,
-    product_id,
-    total,
-    items_count: items ? items.length : 0,
-    operasional_count: operasionals ? operasionals.length : 0
-  });
-
-  db.beginTransaction((err) => {
-    if (err) {
-      console.error('Error starting transaction:', err);
-      return res.status(500).json({ error: 'Database error - transaction failed' });
-    }
-
-    const queryPembelian = `
-      INSERT INTO pembelian (faktur_pemb, penjual_id, product_id, total, created_at)
-      VALUES (?, ?, ?, ?, NOW())
-    `;
-    const valuesPembelian = [no_faktur, penjual_id, product_id, total];
-
-    db.query(queryPembelian, valuesPembelian, (err, results) => {
-      if (err) {
-        console.error('Error creating pembelian:', err);
-        return db.rollback(() => {
-          res.status(500).json({ error: 'Database error - pembelian insert failed: ' + err.message });
-        });
-      }
-
-      const pembelianId = results.insertId;
-
-      // insert detail pembelian
-      const insertDetail = (cb) => {
-        if (items && items.length > 0) {
-          const queryDetail = `
-            INSERT INTO pembelian_detail 
-            (faktur_pemb, nama_kayu, kriteria, diameter, panjang, jumlah, volume, harga_beli, jumlah_harga_beli) 
-            VALUES ?
-          `;
-          const valuesDetail = items.map(item => [
-            no_faktur,
-            item.nama_kayu || '',
-            item.kriteria,
-            item.diameter,
-            item.panjang,
-            item.jumlah,
-            item.volume,
-            item.harga_beli,
-            item.jumlah_harga_beli
-          ]);
-
-          db.query(queryDetail, [valuesDetail], (err) => {
-            if (err) return cb(err);
-
-            // setelah detail sukses → update stok
-            const updateStokQuery = `
-              INSERT INTO stok (nama_kayu, kriteria, diameter, panjang, stok_buku)
-              VALUES (?, ?, ?, ?, ?)
-              ON DUPLICATE KEY UPDATE stok_buku = stok_buku + VALUES(stok_buku)
-            `;
-
-            let errorFound = null;
-            let done = 0;
-
-            items.forEach((item) => {
-              db.query(updateStokQuery, [
-                item.nama_kayu,
-                item.kriteria,
-                item.diameter,
-                item.panjang,
-                item.jumlah
-              ], (err) => {
-                if (err) {
-                  console.error('Gagal update stok pembelian:', err);
-                  errorFound = err;
-                }
-                done++;
-                if (done === items.length) {
-                  cb(errorFound);
-                }
-              });
-            });
-          });
-        } else {
-          cb(null);
-        }
-      };
-
-      // insert operasional
-      const insertOperasional = (cb) => {
-        if (operasionals && operasionals.length > 0) {
-          const queryOps = `
-            INSERT INTO pembelian_operasional (faktur_pemb, jenis, biaya, tipe)
-            VALUES ?
-          `;
-          const valuesOps = operasionals.map(op => [
-            no_faktur,
-            op.jenis || '',
-            op.biaya,
-            op.tipe
-          ]);
-
-          db.query(queryOps, [valuesOps], (err) => {
-            if (err) {
-              return cb(err);
-            }
-            cb(null);
-          });
-        } else {
-          cb(null);
-        }
-      };
-
-      // jalankan insert detail & operasional
-      insertDetail((err) => {
-        if (err) {
-          return db.rollback(() => {
-            res.status(500).json({ error: 'Database error - detail insert failed: ' + err.message });
-          });
-        }
-        insertOperasional((err) => {
-          if (err) {
-            return db.rollback(() => {
-              res.status(500).json({ error: 'Database error - operasional insert failed: ' + err.message });
-            });
-          }
-
-          db.commit((err) => {
-            if (err) {
-              return db.rollback(() => {
-                res.status(500).json({ error: 'Database error - commit failed: ' + err.message });
-              });
-            }
-            res.status(201).json({
-              message: 'Transaksi pembelian created successfully',
-              id: pembelianId
-            });
-          });
-        });
       });
     });
   });

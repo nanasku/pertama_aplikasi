@@ -138,7 +138,7 @@ class _HomePageState extends State<HomePage> {
 
   // Format volume ke meter kubik dengan 2 desimal
   String _formatVolume(double volume) {
-    return '${volume.toStringAsFixed(2)} m³';
+    return '${volume.toStringAsFixed(2)} cm³';
   }
 
   // Widget card untuk menampilkan statistik
@@ -188,7 +188,7 @@ class _HomePageState extends State<HomePage> {
                       Text(
                         title,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 10,
                           fontWeight: FontWeight.w600,
                           color: Colors.grey[700],
                         ),
@@ -196,7 +196,7 @@ class _HomePageState extends State<HomePage> {
                       Text(
                         '$count Transaksi',
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: color,
                         ),
@@ -210,7 +210,7 @@ class _HomePageState extends State<HomePage> {
             Text(
               'Total Volume per Kriteria:',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 10,
                 fontWeight: FontWeight.w600,
                 color: Colors.grey[600],
               ),
@@ -220,7 +220,7 @@ class _HomePageState extends State<HomePage> {
               Text(
                 'Tidak ada data volume',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 8,
                   color: Colors.grey[500],
                   fontStyle: FontStyle.italic,
                 ),
@@ -561,27 +561,24 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 24),
 
                     // Grid Statistik
-                    GridView.count(
-                      crossAxisCount: MediaQuery.of(context).size.width > 600
-                          ? 2
-                          : 1,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 1.5,
+                    Row(
                       children: [
-                        _buildStatCard(
-                          'Total Pembelian Hari Ini',
-                          pembelianHariIni.length,
-                          volumePembelian,
-                          Colors.green,
+                        Expanded(
+                          child: _buildStatCard(
+                            'Total Pembelian Hari Ini',
+                            pembelianHariIni.length,
+                            volumePembelian,
+                            Colors.green,
+                          ),
                         ),
-                        _buildStatCard(
-                          'Total Penjualan Hari Ini',
-                          penjualanHariIni.length,
-                          volumePenjualan,
-                          Colors.blue,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Total Penjualan Hari Ini',
+                            penjualanHariIni.length,
+                            volumePenjualan,
+                            Colors.blue,
+                          ),
                         ),
                       ],
                     ),
@@ -616,7 +613,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             _buildQuickStat(
                               'Volume Total',
-                              '${totalVolume.toStringAsFixed(1)} m³',
+                              '${totalVolume.toStringAsFixed(1)} cm³',
                               Icons.analytics,
                               Colors.orange,
                             ),
